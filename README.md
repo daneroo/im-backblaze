@@ -1,13 +1,28 @@
 # Backblaze monitoring
 
-See [encoding/csv](https://www.socketloop.com/tutorials/golang-read-tab-delimited-file-with-encoding-csv-package) for parsing tsv
+In the course of it's operation Backblaze leaves these log files, and we wish to answer some questions using them; such as:
+
+- Explicitly which files (and directories) are excluded/skipped
+- Which files (and sizes) are uploaded on an ongoing basis
+- Vizualize the operation of continuous backup
+
+## Backblaze log files: (on dirac)
+- `/Library/Backblaze.bzpkg/bzdata/bzlogs/bzfilelist/bzfilelist$(date +%d).log`: filelist process report
+- `/Library/Backblaze.bzpkg/bzdata/bzinfo.xml`: All info on backup. Which volumes, schedule, excluded dirs
+- `/Library/Backblaze.bzpkg/bzdata`
+- `/.bzvol/bzvol_id.xml` Volume identifier
+- `/Volumes/Space/.bzvol/bzvol_id.xml` Volume identifier
+
+Lists are in: `/Library/Backblaze.bzpkg/bzdata/bzfilelists`
+
+- Golang; See [encoding/csv](https://www.socketloop.com/tutorials/golang-read-tab-delimited-file-with-encoding-csv-package) for parsing tsv
 
 ## Monitor progress
 ```
 tail -f /Library/Backblaze.bzpkg/bzdata/bzlogs/bzreports_lastfilestransmitted/$(date +%d).log
 ```
 
-## Find _skipped_ files
+## Find _skipped / excluded_ files
 Use `cut` and `sort` to compare with `diff` `cmp`
 ```
 wc -l ./data/dirac/bzdata/bzbackup/bzfileids.dat
@@ -21,27 +36,17 @@ grep -h '^f' ./data/dirac/bzdata/bzfilelists/v00*dat | cut -f 4 | sort > compare
 diff -W 240 --suppress-common-lines --side-by-side compare-file*dat
 ```
 
-### With go
+### With golang
 ```
 go run cmd/parseFileId.go >compare-fileids-unsorted-go.dat
 go run cmd/parseFileId.go | sort >compare-fileids-sorted-go.dat
 ```
-## Backblaze files: (on direac)
-- `/Library/Backblaze.bzpkg/bzdata/bzlogs/bzfilelist/bzfilelist$(date +%d).log`: filelist process report
-- `/Library/Backblaze.bzpkg/bzdata/bzinfo.xml`: All info on backup. Which volumes, schedule, excluded dirs
-
-- `/Library/Backblaze.bzpkg/bzdata`
-- `/.bzvol/bzvol_id.xml` Volume identifier
-- `/Volumes/Space/.bzvol/bzvol_id.xml` Volume identifier
-
-Lists are in: `/Library/Backblaze.bzpkg/bzdata/bzfilelists`
 
 ### Temporary copy, in case some files disppear
 ```
-for h in dirac fermat; do
-  echo "Cloning ${h}"
-done
+./clone.sh
 ```
+
 ### Counting things
 FILELIST=v0009a98724006e621c1646e011f_root_filelist.dat
 ```
