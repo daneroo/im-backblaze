@@ -15,11 +15,20 @@ In the course of it's operation Backblaze leaves these log files, and we wish to
 
 Lists are in: `/Library/Backblaze.bzpkg/bzdata/bzfilelists`
 
+## References
 - Golang; See [encoding/csv](https://www.socketloop.com/tutorials/golang-read-tab-delimited-file-with-encoding-csv-package) for parsing tsv
+- [D3 Zoomable Sunburst](https://bl.ocks.org/mbostock/4348373)
+- [D3 Stramgraph](https://beta.observablehq.com/@mbostock/streamgraph-transitions)
+- [My BBWorld Twitter StreamGraph](https://github.com/daneroo/socialbuzz)
+- [D3 Sunburst tutorial](https://bl.ocks.org/denjn5/e1cdbbe586ac31747b4a304f8f86efa5)
+- [Disk And Memory Space Visualization App built with Electron & d3.js](https://github.com/zz85/space-radar)
+- [Python diskover app](https://github.com/shirosaidev/diskover)
+- [Single Layer](https://github.com/kratsg/uct3_diskspace)
 
 ## Monitor progress
 ```
 tail -f /Library/Backblaze.bzpkg/bzdata/bzlogs/bzreports_lastfilestransmitted/$(date +%d).log
+sudo /usr/local/sbin/iftop -i en1
 ```
 
 ## Find _skipped / excluded_ files
@@ -30,7 +39,7 @@ wc -l ./data/dirac/bzdata/bzbackup/bzfileids.dat
 grep '^f' ./data/dirac/bzdata/bzfilelists/v00*dat|wc -l
 # 1993454
 
-cat ./data/dirac/bzdata/bzbackup/bzfileids.dat | cut -f 2 | sort > compare-fileids-sorted.dat
+cat ./data/dirac/bzdata/bzbackup/bzfileids.dat | cut -f 2 | sort |uniq > compare-fileids-sorted.dat
 grep -h '^f' ./data/dirac/bzdata/bzfilelists/v00*dat | cut -f 4 | sort > compare-filelists-sorted.dat
 
 diff -W 240 --suppress-common-lines --side-by-side compare-file*dat
@@ -38,8 +47,12 @@ diff -W 240 --suppress-common-lines --side-by-side compare-file*dat
 
 ### With golang
 ```
-go run cmd/parseFileId.go >compare-fileids-unsorted-go.dat
-go run cmd/parseFileId.go | sort >compare-fileids-sorted-go.dat
+time go run cmd/parseFileId.go
+
+sha1sum compare-file*
+bf871d7e8f16540e730bc7233208e9035b6f2a30  compare-fileids-sorted.dat
+bf9bedc8f29f8cc1aa0e889afe20aa0d12ca69d1  compare-filelists-sorted.dat
+
 ```
 
 ### Temporary copy, in case some files disppear
