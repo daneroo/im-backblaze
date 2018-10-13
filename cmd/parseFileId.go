@@ -5,25 +5,159 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 )
 
-const fileids = "./data/dirac/bzdata/bzbackup/bzfileids.dat"
-const filelists0 = "./data/dirac/bzdata/bzfilelists/v0009a98724006e621c1646e011f_root_filelist.dat"
-const filelists1 = "./data/dirac/bzdata/bzfilelists/v0019ae8724006e621c1646e011f______filelist.dat"
-
 func main() {
-	var lines []string
-	lines = extractField(fileids, 1, filterFileIds)
-	lines = sortAndUniq(lines)
-	write("compare-fileids-sorted.dat", lines)
+	fileIds := parseFileIds()
+	// write("compare-fileids-sorted.dat", fileIds)
 
-	lines0 := extractField(filelists0, 3, filterFilelist)
-	lines1 := extractField(filelists1, 3, filterFilelist)
-	lines = append(lines0, lines1...)
+	fileLists := parseFileLists()
+	// write("compare-filelists-sorted.dat", fileLists)
+
+	missingOnDisk, notBackedUp := diff(fileIds, fileLists)
+	reportMissingOnDisk(missingOnDisk)
+	reportNotBackedUp(notBackedUp)
+}
+
+func reportMissingOnDisk(missingOnDisk []string) {
+	fmt.Fprintf(os.Stderr, "aNotInB (Missing on Disk): %d\n", len(missingOnDisk))
+}
+
+// see /Library/Backblaze.bzpkg/bzdata/bzexcluderules_mandatory.xml
+// see /Library/Backblaze.bzpkg/bzdata/bzexcluderules_editable.xml
+// wab~,vmc,vhd,vhdx,vdi,vo1,vo2,vsv,vud,iso,dmg,sparseimage,sys,cab,
+// exe,msi,dll,dl_,wim,ost,o,qtch,log,ithmb,vmdk,vmem,vmsd,vmsn,vmss,vmx,vmxf,
+// menudata,appicon,appinfo,pva,pvs,pvi,pvm,fdd,hds,drk,mem,nvram,hdd
+func reportNotBackedUp(notBackedUp []string) {
+	ignoredSuffix := map[string]int{
+		".lockn":     0,
+		".ds_store":  0,
+		".localized": 0,
+		".log":       0,
+		".exe":       0,
+		".dmg":       0,
+		".iso":       0,
+		".sys":       0,
+		".o":         0,
+		".ithmb":     0,
+		".dll":       0,
+		".vmdk":      0,
+	}
+	// regexp.MustCompile("(gopher){2}")
+	ignoredRules := map[string]int{
+		"(?i)^/(volumes/[[:alnum:]]+/)?.bzvol/(README.txt|bzvol_id.xml)$": 0,
+		"(?i)^/.file":           0,
+		"(?i)^/users/.*/.trash": 0,
+		"(?i)^/users/.*/library/.*saved application state":                                    0,
+		"(?i)^/users/.*/library/logs/":                                                        0,
+		"(?i)^/users/.*/library/application support/syncservices/local/":                      0,
+		"(?i)^/users/.*/library/application support/google/chrome/.*safe browsing":            0,
+		"(?i)^/users/.*/library/application support/google/chrome/default/.*history":          0,
+		"(?i)^/users/.*/library/application support/google/chrome/default/.*thumbnails":       0,
+		"(?i)^/users/.*/library/application support/google/chrome/default/.*archived history": 0,
+		// minus the bookmarks
+		"(?i)^/users/.*/library/application support/firefox": 0,
+		// minus the bookmarks
+		"(?i)^/users/.*/library/cache/firefox/profiles":               0,
+		"(?i)^/users/.*/library/caches/":                              0,
+		"(?i)^/developer":                                             0,
+		"(?i)^/users/.*/library/developer/.*shared/documentation/":    0,
+		"(?i)^/users/.*/library/developer/.*xcode/ios devicesupport/": 0,
+	}
+	fmt.Fprintf(os.Stderr, "bNotInA (Not Backed Up): %d\n", len(notBackedUp))
+	unaccounted := 0
+	ignoredRulesREs := make(map[string](*regexp.Regexp))
+	for k := range ignoredRules {
+		ignoredRulesREs[k] = regexp.MustCompile(k)
+	}
+	for _, line := range notBackedUp {
+		accountedFor := false
+		for k := range ignoredRules {
+			re := ignoredRulesREs[k]
+			if re.MatchString(line) {
+				// fmt.Fprintf(os.Stderr, "Matched: %s (%s)\n", line, k)
+				ignoredRules[k]++
+				accountedFor = true
+			}
+		}
+		for k := range ignoredSuffix {
+			if strings.HasSuffix(strings.ToLower(line), k) {
+				ignoredSuffix[k]++
+				accountedFor = true
+			}
+		}
+		if !accountedFor {
+			fmt.Fprintf(os.Stderr, "NotBackedUp: %s\n", line)
+			unaccounted++
+		}
+	}
+	fmt.Fprintf(os.Stderr, "NotBackedUp: total: %d\n", len(notBackedUp))
+	fmt.Fprintf(os.Stderr, "NotBackedUp: unaccounted: %d\n", unaccounted)
+	// fmt.Fprintf(os.Stderr, "NotBackedUp: %v\n", ignoredSuffix)
+	fmt.Fprintf(os.Stderr, "NotBackedUp: Ignored by Suffix\n")
+	for k := range ignoredSuffix {
+		fmt.Fprintf(os.Stderr, " %9d : %s\n", ignoredSuffix[k], k)
+	}
+	// fmt.Fprintf(os.Stderr, "NotBackedUp: %v\n", ignoredRules)
+	fmt.Fprintf(os.Stderr, "NotBackedUp: Ignored by Rule\n")
+	for k := range ignoredRules {
+		fmt.Fprintf(os.Stderr, " %9d : %s\n", ignoredRules[k], k)
+	}
+}
+
+// How about some tests (assume sorted?)
+func diff(as, bs []string) (aNotInB, bNotInA []string) {
+	aNotInB = make([]string, 0)
+	bNotInA = make([]string, 0)
+	eq := 0
+	a, b := 0, 0
+	for a < len(as) && b < len(bs) {
+		cmp := strings.Compare(as[a], bs[b])
+		if cmp == 0 {
+			// fmt.Fprintf(os.Stderr, "Equal: a[%d] = b[%d]=%s,%s \n", a, b, as[a], bs[b])
+			eq++
+			a++
+			b++
+		} else if cmp < 0 { // a < b
+			// fmt.Fprintf(os.Stderr, "Missing in b (Missing on Disk): a[%d] = %s \n", a, as[a])
+			aNotInB = append(aNotInB, as[a])
+			a++
+		} else if cmp > 0 { // a > b
+			// fmt.Fprintf(os.Stderr, "Missing in a (Not Backed Up): b[%d] = %s \n", b, bs[b])
+			bNotInA = append(bNotInA, bs[b])
+			b++
+		}
+		// fmt.Fprintf(os.Stderr, "Compare: %d %d \n", a, b)
+	}
+	fmt.Fprintf(os.Stderr, "Equal: %d\n", eq)
+	return aNotInB, bNotInA
+}
+func parseFileLists() []string {
+	// const filelists0 = "./data/dirac/bzdata/bzfilelists/v0009a98724006e621c1646e011f_root_filelist.dat"
+	// const filelists1 = "./data/dirac/bzdata/bzfilelists/v0019ae8724006e621c1646e011f______filelist.dat"
+
+	files, err := filepath.Glob("./data/dirac/bzdata/bzfilelists/v*filelist.dat")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	lines := make([]string, 0)
+	for _, file := range files {
+		morelines := extractField(file, 3, filterFilelist)
+		lines = append(lines, morelines...)
+	}
 	lines = sortAndUniq(lines)
-	write("compare-filelists-sorted.dat", lines)
+	return lines
+}
+func parseFileIds() []string {
+	const fileids = "./data/dirac/bzdata/bzbackup/bzfileids.dat"
+	lines := extractField(fileids, 1, filterFileIds)
+	lines = sortAndUniq(lines)
+	return lines
 }
 
 func filterFileIds(fields []string) bool {
@@ -130,14 +264,4 @@ func write(outfilename string, lines []string) {
 	if err != nil {
 		log.Fatal(err)
 	}
-}
-
-func filter(vs []string, f func(string) bool) []string {
-	vsf := make([]string, 0)
-	for _, v := range vs {
-		if f(v) {
-			vsf = append(vsf, v)
-		}
-	}
-	return vsf
 }
