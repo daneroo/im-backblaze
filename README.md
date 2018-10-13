@@ -26,14 +26,24 @@ Lists are in: `/Library/Backblaze.bzpkg/bzdata/bzfilelists`
 - [Single Layer](https://github.com/kratsg/uct3_diskspace)
 
 
+## bzFlow
+Attempts to answer the question:
 
-## With golang
+- Which files are being transmited, on an ongoing basis?
 ```
-time go run cmd/bzWhyIgnored.go
+time go run cmd/bzFlow/bzFlow.go
+```
 
-go build cmd/bzWhyIgnored.go
+## bzWhyIgnored
+Attempts to answer the question:
+
+- Which files are NOT backed up and why ?
+
+```
+time go run cmd/bzWhyIgnored/bzWhyIgnored.go
+
+go build cmd/bzWhyIgnored/bzWhyIgnored.go
 time bzWhyIgnored
-
 scp -p bzWhyIgnored fermat:Downloads
 ssh fermat time Downloads/bzWhyIgnored
 ```
