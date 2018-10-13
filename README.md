@@ -25,13 +25,33 @@ Lists are in: `/Library/Backblaze.bzpkg/bzdata/bzfilelists`
 - [Python diskover app](https://github.com/shirosaidev/diskover)
 - [Single Layer](https://github.com/kratsg/uct3_diskspace)
 
-## Monitor progress
+
+
+## With golang
+```
+time go run cmd/parseFileId.go
+```
+
+## Monitor progress during inital upload
 ```
 tail -f /Library/Backblaze.bzpkg/bzdata/bzlogs/bzreports_lastfilestransmitted/$(date +%d).log
 sudo /usr/local/sbin/iftop -i en1
 ```
 
-## Find _skipped / excluded_ files
+## Manual exploration
+
+### Temporary copy, in case some files disppear
+```
+./scripts/clone.sh
+```
+
+### Counting things
+FILELIST=v0009a98724006e621c1646e011f_root_filelist.dat
+```
+./scripts/count.sh
+```
+
+## Find _skipped / excluded_ files Manually
 Use `cut` and `sort` to compare with `diff` `cmp`
 ```
 wc -l ./data/dirac/bzdata/bzbackup/bzfileids.dat
@@ -42,28 +62,11 @@ grep '^f' ./data/dirac/bzdata/bzfilelists/v00*dat|wc -l
 cat ./data/dirac/bzdata/bzbackup/bzfileids.dat | cut -f 2 | sort |uniq > compare-fileids-sorted.dat
 grep -h '^f' ./data/dirac/bzdata/bzfilelists/v00*dat | cut -f 4 | sort > compare-filelists-sorted.dat
 
-diff -W 240 --suppress-common-lines --side-by-side compare-file*dat
-```
-
-### With golang
-```
-time go run cmd/parseFileId.go
-
 sha1sum compare-file*
 bf871d7e8f16540e730bc7233208e9035b6f2a30  compare-fileids-sorted.dat
 bf9bedc8f29f8cc1aa0e889afe20aa0d12ca69d1  compare-filelists-sorted.dat
 
-```
-
-### Temporary copy, in case some files disppear
-```
-./clone.sh
-```
-
-### Counting things
-FILELIST=v0009a98724006e621c1646e011f_root_filelist.dat
-```
-./count.sh
+diff -W 240 --suppress-common-lines --side-by-side compare-file*dat
 ```
 
 ### Finding Excluded files explicitly
