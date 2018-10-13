@@ -280,10 +280,7 @@ func write(outfilename string, lines []string) {
 			fmt.Fprintf(os.Stderr, "Empty field on line:  %d\n", i)
 			continue
 		}
-		// fmt.Fprintf(outfile, "%s\n", field)
 		fmt.Fprintf(bw, "%s\n", field)
-		// n4, err := w.WriteString(fmt.Sprintf("%s\n"))
-		// bw.WriteString(fmt.Sprintf("%s\n", field))
 	}
 	err = bw.Flush()
 	if err != nil {
