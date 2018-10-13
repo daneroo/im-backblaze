@@ -1,5 +1,8 @@
 package main
 
+// Attempts to answer the question:
+// - Which files are NOT backed up and why ?
+
 import (
 	"bufio"
 	"fmt"
@@ -10,6 +13,10 @@ import (
 	"sort"
 	"strings"
 )
+
+// const baseDir = "./data/dirac/bzdata"
+// const baseDir = "./data/fermat/bzdata"
+const baseDir = "/Library/Backblaze.bzpkg/bzdata"
 
 func main() {
 	fileIds := parseFileIds()
@@ -46,14 +53,34 @@ func reportNotBackedUp(notBackedUp []string) {
 		".ithmb":     0,
 		".dll":       0,
 		".vmdk":      0,
+		".vdi":       0,
+		".msi":       0,
 	}
 	// regexp.MustCompile("(gopher){2}")
 	ignoredRules := map[string]int{
 		"(?i)^/(volumes/[[:alnum:]]+/)?.bzvol/(README.txt|bzvol_id.xml)$": 0,
 		"(?i)^/.file":           0,
 		"(?i)^/users/.*/.trash": 0,
-		"(?i)^/users/.*/library/.*saved application state":                                    0,
-		"(?i)^/users/.*/library/logs/":                                                        0,
+		"(?i)^/users/.*/library/.*saved application state":               0,
+		"(?i)^/users/.*/library/logs/":                                   0,
+		"(?i)^/users/.*/iphoto library/thumbnails/":                      0,
+		"(?i)^/users/.*/iphoto library.migratedphotolibrary/thumbnails/": 0,
+		"(?i)^/users/.*/photos library.photoslibrary/thumbnails/":        0,
+		"(?i)^/users/.*/movies/.*render files/":                          0,
+		// <excludefname_rule plat="mac" osVers="*"  ruleIsOptional="f" skipFirstCharThenStartsWith="users/" contains_1="/itunes/" contains_2="*" doesNotContain="*" endsWith="*" hasFileExtension="ipsw" />                             <!-- iPod software updates -->
+		"(?i)^/users/.*/itunes/.*\\.ipsw$":             0,
+		"(?i)^/users/.*/itunes/itunes music/podcasts/": 0,
+		"(?i)^/users/.*/itunes/itunes media/podcasts/": 0,
+
+		"(?i)^/users/.*/library/mail/v2/maildata/envelope index(-shm|-wal)?$": 0,
+		"(?i)^/users/.*/library/mail/v2/maildata/availablefeeds(-shm|-wal)?$": 0,
+		"(?i)^/users/.*/library/mail/v2/maildata/defaultcounts$":              0,
+		"(?i)^/users/.*/library/mail/v2/maildata/lsmmap2$":                    0,
+
+		"(?i)^/users/.*/library/safari/(icons|historyindex\\.sk|webpageicons\\.db)": 0,
+
+		"(?i)^/users/shared/blizzard": 0,
+
 		"(?i)^/users/.*/library/application support/syncservices/local/":                      0,
 		"(?i)^/users/.*/library/application support/google/chrome/.*safe browsing":            0,
 		"(?i)^/users/.*/library/application support/google/chrome/default/.*history":          0,
@@ -137,10 +164,8 @@ func diff(as, bs []string) (aNotInB, bNotInA []string) {
 	return aNotInB, bNotInA
 }
 func parseFileLists() []string {
-	// const filelists0 = "./data/dirac/bzdata/bzfilelists/v0009a98724006e621c1646e011f_root_filelist.dat"
-	// const filelists1 = "./data/dirac/bzdata/bzfilelists/v0019ae8724006e621c1646e011f______filelist.dat"
 
-	files, err := filepath.Glob("./data/dirac/bzdata/bzfilelists/v*filelist.dat")
+	files, err := filepath.Glob(baseDir + "/bzfilelists/v*filelist.dat")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -154,7 +179,7 @@ func parseFileLists() []string {
 	return lines
 }
 func parseFileIds() []string {
-	const fileids = "./data/dirac/bzdata/bzbackup/bzfileids.dat"
+	const fileids = baseDir + "/bzbackup/bzfileids.dat"
 	lines := extractField(fileids, 1, filterFileIds)
 	lines = sortAndUniq(lines)
 	return lines

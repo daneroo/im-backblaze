@@ -29,7 +29,13 @@ Lists are in: `/Library/Backblaze.bzpkg/bzdata/bzfilelists`
 
 ## With golang
 ```
-time go run cmd/parseFileId.go
+time go run cmd/bzWhyIgnored.go
+
+go build cmd/bzWhyIgnored.go
+time bzWhyIgnored
+
+scp -p bzWhyIgnored fermat:Downloads
+ssh fermat time Downloads/bzWhyIgnored
 ```
 
 ## Monitor progress during inital upload
