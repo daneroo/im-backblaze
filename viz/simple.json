@@ -1,0 +1,38 @@
+{
+  "name": "Root", "size":1,
+  "children": [{
+    "name": "Level-1", "size":10,
+    "children": [{
+      "name": "Level-1-1", "size":100,
+      "children": [
+       {"name": "Leaf-1-1-1", "size": 1000},
+       {"name": "Leaf-1-1-2", "size": 2000},
+       {"name": "Leaf-1-1-3", "size": 3000}
+      ]
+    },{
+      "name": "Level-1-2", "size":100,
+      "children": [
+       {"name": "Leaf-1-2-1", "size": 2000},
+       {"name": "Leaf-1-2-2", "size": 2000},
+       {"name": "Leaf-1-2-3", "size": 2000}
+      ]
+    }]
+  },{
+    "name": "Level-2", "size":20,
+    "children": [{
+      "name": "Level-2-1", "size":200,
+      "children": [
+       {"name": "Leaf-2-1-1", "size": 3000},
+       {"name": "Leaf-2-1-2", "size": 4000},
+       {"name": "Leaf-2-1-3", "size": 5000}
+      ]
+    },{
+      "name": "Level-2-2", "size":200,
+      "children": [
+       {"name": "Leaf-2-2-1", "size": 4000},
+       {"name": "Leaf-2-2-2", "size": 4000},
+       {"name": "Leaf-2-2-3", "size": 4000}
+      ]
+    }]
+  }]
+ }

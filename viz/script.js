@@ -28,21 +28,26 @@ const svg = d3.select('body').append('svg')
   .append('g')
   .attr('transform', 'translate(' + width / 2 + ',' + (height / 2) + ')')
 
-d3.json('flare.json', function (error, root) {
-  if (error) throw error
+function load (path) {
+  d3.json(path, function (error, root) {
+    if (error) throw error
 
-  root = d3.hierarchy(root)
-  root.sum(function (d) { return d.size })
-  console.log(root)
-  svg.selectAll('path')
-    .data(partition(root).descendants())
-    .enter().append('path')
-    .attr('d', arc)
-    .style('fill', function (d) { return color((d.children ? d : d.parent).data.name) })
-    .on('click', click)
-    .append('title')
-    .text(function (d) { return d.data.name + '\n' + formatNumber(d.value) })
-})
+    // clear first
+    svg.selectAll('path').remove()
+
+    root = d3.hierarchy(root)
+    root.sum(function (d) { return d.size })
+    console.log(root)
+    svg.selectAll('path')
+      .data(partition(root).descendants())
+      .enter().append('path')
+      .attr('d', arc)
+      .style('fill', function (d) { return color((d.children ? d : d.parent).data.name) })
+      .on('click', click)
+      .append('title')
+      .text(function (d) { return d.data.name + '\n' + formatNumber(d.value) })
+  })
+}
 
 function click (d) {
   console.log(d.data.name)
@@ -66,16 +71,18 @@ const select = d3.select('body')
 
 select
   .selectAll('option')
-  .data(['Option 1', 'Option 2']).enter()
+  .data(['flare', 'simple']).enter()
   .append('option')
   .text(function (d) { return d })
 
 function onchange () {
   const selectValue = d3.select('select').property('value')
   console.log('selected ', selectValue)
-  d3.select('body')
-    .append('p')
-    .text(selectValue + ' is the last selected option.')
+  load(selectValue + '.json')
+  // d3.select('body')
+  //   .append('p')
+  //   .text(selectValue + ' is the last selected option.')
 };
 
+onchange() // load('flare.json')
 d3.select(window.frameElement).style('height', height + 'px')
