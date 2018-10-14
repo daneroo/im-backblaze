@@ -10,13 +10,13 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 )
 
-const baseDir = "./data/dirac/bzdata"
-
+// const baseDir = "./data/dirac/bzdata"
 // const baseDir = "./data/fermat/bzdata"
-// const baseDir = "/Library/Backblaze.bzpkg/bzdata"
+const baseDir = "/Library/Backblaze.bzpkg/bzdata"
 
 // bzlogs/bzreports_lastfilestransmitted/13.log
 
@@ -29,20 +29,94 @@ func main() {
 
 	for _, file := range files {
 		xfrs := parseTransmited(file)
-		writeJSON(xfrs, false) // one json array '.json'
-		writeJSON(xfrs, true)  //perLine '.jsonl'
+		// writeJSON(xfrs, false) // one json array '.json'
+		// writeJSON(xfrs, true)  //perLine '.jsonl'
+
+		// writeTree(tree)
+
+		summary := summarize(xfrs)
+		// include files themselves
+		// summary = append(summary, xfrs...)
+
+		sort.Slice(summary, func(i, j int) bool {
+			if summary[i].Size == summary[j].Size {
+				return summary[i].FName < summary[j].FName // FName lexicographical ascending
+			}
+			return summary[i].Size > summary[j].Size // Size descending
+		})
+		writeJSON(summary, true) //perLine '.jsonl'
 	}
 
 }
 
 type transmited struct {
 	Stamp     string `json:"stamp"`
-	Speed     int    `json:"speed"`
+	Speed     int    `json:"-"`
 	SpeedUnit string `json:"-"`
 	Size      int    `json:"size"`
 	SizeUnit  string `json:"-"`
 	Chunk     int    `json:"chunk"`
 	FName     string `json:"fname"`
+}
+
+func parent(path string) string {
+	if strings.HasSuffix(path, "/") {
+		path = path[0 : len(path)-1]
+	}
+	dir, _ := filepath.Split(path)
+	return dir
+}
+
+func summarize(xfrs []transmited) []transmited {
+	fmt.Fprintf(os.Stderr, "-= Writing %d entries\n", len(xfrs))
+	tree := make(map[string]*transmited)
+	for _, tx := range xfrs {
+		// walk up the current path
+		// fmt.Println("fname", tx.FName)
+		dir := parent(tx.FName)
+		for len(dir) > 0 {
+			// fmt.Println("dir", dir)
+			// add to current dir
+			_, ok := tree[dir]
+			if !ok {
+				tree[dir] = &transmited{}
+				tree[dir].FName = dir
+				tree[dir].Stamp = tx.Stamp[0:10]
+			}
+			tree[dir].Size += tx.Size
+
+			// walk up
+			dir = parent(dir)
+		}
+
+	}
+	// return tree
+	list := make([]transmited, 0, len(tree))
+	for _, tx := range tree {
+		list = append(list, *tx)
+	}
+	return list
+}
+
+func writeTree(tree map[string]*transmited) {
+	if _, ok := tree["/"]; !ok {
+		return // rootless tree
+	}
+	outfilename := fmt.Sprintf("tree-%s.json", tree["/"].Stamp)
+	fmt.Fprintf(os.Stderr, "-= Writing %s (%d entries)\n", outfilename, len(tree))
+
+	outfile, err := os.Create(outfilename)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer outfile.Close()
+
+	enc := json.NewEncoder(outfile)
+	err = enc.Encode(tree)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 }
 
 /*
