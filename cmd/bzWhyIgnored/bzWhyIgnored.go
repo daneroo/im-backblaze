@@ -163,6 +163,7 @@ func diff(as, bs []string) (aNotInB, bNotInA []string) {
 	fmt.Fprintf(os.Stderr, "Equal: %d\n", eq)
 	return aNotInB, bNotInA
 }
+
 func parseFileLists() []string {
 
 	files, err := filepath.Glob(baseDir + "/bzfilelists/v*filelist.dat")

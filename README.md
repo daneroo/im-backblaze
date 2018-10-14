@@ -16,7 +16,6 @@ In the course of it's operation Backblaze leaves these log files, and we wish to
 Lists are in: `/Library/Backblaze.bzpkg/bzdata/bzfilelists`
 
 ## References
-- Golang; See [encoding/csv](https://www.socketloop.com/tutorials/golang-read-tab-delimited-file-with-encoding-csv-package) for parsing tsv
 - [D3 Zoomable Sunburst](https://bl.ocks.org/mbostock/4348373)
 - [D3 Stramgraph](https://beta.observablehq.com/@mbostock/streamgraph-transitions)
 - [My BBWorld Twitter StreamGraph](https://github.com/daneroo/socialbuzz)
