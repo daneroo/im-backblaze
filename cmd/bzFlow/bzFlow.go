@@ -29,7 +29,8 @@ func main() {
 	}
 
 	for _, file := range files {
-		xfrs := backblaze.ParseTransmited(file)
+		xfrs := parse(file)
+
 		// writeJSON(xfrs, false) // one json array '.json'
 		// writeJSON(xfrs, true)  //perLine '.jsonl'
 
@@ -49,7 +50,16 @@ func main() {
 	}
 
 }
+func parse(file string) []backblaze.Transmitted {
+	infile, err := os.Open(file)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer infile.Close()
 
+	return backblaze.ParseTransmited(infile)
+
+}
 func parent(path string) string {
 	if strings.HasSuffix(path, "/") {
 		path = path[0 : len(path)-1]

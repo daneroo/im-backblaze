@@ -3,6 +3,7 @@ package backblaze
 import (
 	"bufio"
 	"fmt"
+	"log"
 	"os"
 	"reflect"
 	"strings"
@@ -159,24 +160,29 @@ func TestSplitFieldsByType(t *testing.T) {
 			},
 		},
 	}
-	for _, tt := range data {
-		lines := strings.Split(tt.in, "\n")
-		list := make([]Transmitted, 0)
-		lastCombined := Transmitted{}
+	for _, isFastMethod := range []bool{false, true} {
+		for _, tt := range data {
+			lines := strings.Split(tt.in, "\n")
+			list := make([]Transmitted, 0)
+			lastCombined := Transmitted{}
 
-		for _, line := range lines {
-			tx, txtyp := splitFields(line, &lastCombined)
-			// tx, txtyp := splitFieldsFast(line, &lastCombined)
-			tx.Type = txtyp
-			list = append(list, tx)
-			if tx.Type == combinedHeader {
-				lastCombined = tx
+			for _, line := range lines {
+				var tx Transmitted
+				if isFastMethod {
+					tx = splitFieldsFast(line, &lastCombined)
+				} else {
+					tx = splitFields(line, &lastCombined)
+				}
+				list = append(list, tx)
+				if tx.Type == combinedHeader {
+					lastCombined = tx
+				}
 			}
-		}
-		got := list
-		if !reflect.DeepEqual(tt.out, got) {
-			t.Errorf("Test:%s: input:\n%s\nexpected:\n%sgot:\n %s", tt.name, tt.in, vslice(tt.out), vslice(got))
-			// t.Errorf("ZZ %#v", got)
+			got := list
+			if !reflect.DeepEqual(tt.out, got) {
+				t.Errorf("Test:%s: isFastMethod:%v input:\n%s\nexpected:\n%sgot:\n %s", tt.name, isFastMethod, tt.in, vslice(tt.out), vslice(got))
+				// t.Errorf("ZZ %#v", got)
+			}
 		}
 	}
 }
@@ -189,16 +195,6 @@ func TestSplitFields(t *testing.T) {
 		{
 			filename: "./test/data/transmitted.log",
 			out: []Transmitted{
-				// Transmitted{Type: "Normal", Stamp: "2018-10-02 13:27:18", Speed: 3112, SpeedUnit: "kBits/sec", Size: 30460266, SizeUnit: "bytes", Chunk: 0, FName: "/Volumes/Space/archive/media/video/PMB/12-23-2008(1)/20081219122438.mpg"},
-				// Transmitted{Type: "Dedup", Stamp: "2018-10-10 01:40:42", Speed: 0, SpeedUnit: "", Size: 0, SizeUnit: "bytes", Chunk: 0, FName: "/Users/daniel/Library/Containers/com.evernote.Evernote/Data/Library/Application Support/com.evernote.Evernote/puppetmaster/OutputsCache.json"},
-				// Transmitted{Type: "CombinedHeader", Stamp: "2018-10-01 15:25:14", Speed: 3822, SpeedUnit: "kBits/sec", Size: 3489825, SizeUnit: "bytes*", Chunk: 3, FName: "Multiple small files batched in one request, the 3 files are listed below:"},
-				// Transmitted{Type: "CombinedContinued", Stamp: "2018-10-01 15:25:14", Speed: 0, SpeedUnit: "", Size: 0, SizeUnit: "", Chunk: 0, FName: "/Volumes/Space/archive/media/photo/catou/2005_11_02-R/IMG_0927.JPG"},
-				// Transmitted{Type: "CombinedContinued", Stamp: "2018-10-01 15:25:14", Speed: 0, SpeedUnit: "", Size: 0, SizeUnit: "", Chunk: 1, FName: "/Volumes/Space/archive/media/photo/catou/2007-07-04-lesours/IMG_4941.JPG"},
-				// Transmitted{Type: "CombinedContinued", Stamp: "2018-10-01 15:25:14", Speed: 0, SpeedUnit: "", Size: 0, SizeUnit: "", Chunk: 2, FName: "/Users/daniel/GoogleDrive/Google Photos/2013/12/IMG_1490.JPG"},
-				// Transmitted{Type: "Chunked", Stamp: "2018-10-11 10:49:34", Speed: 1643, SpeedUnit: "kBits/sec", Size: 410714, SizeUnit: "bytes", Chunk: 1305, FName: "/Users/daniel/Library/Containers/com.docker.docker/Data/vms/0/Docker.qcow2"},
-				// Transmitted{Type: "Chunked", Stamp: "2018-10-11 10:49:35", Speed: 1973, SpeedUnit: "kBits/sec", Size: 634794, SizeUnit: "bytes", Chunk: 1322, FName: "/Users/daniel/Library/Containers/com.docker.docker/Data/vms/0/Docker.qcow2"},
-				// Transmitted{Type: "Chunked", Stamp: "2018-10-11 10:49:37", Speed: 2604, SpeedUnit: "kBits/sec", Size: 834682, SizeUnit: "bytes", Chunk: 1349, FName: "/Users/daniel/Library/Containers/com.docker.docker/Data/vms/0/Docker.qcow2"},
-
 				Transmitted{Type: "Normal", Stamp: "2018-10-02 13:27:18", Speed: 3112, SpeedUnit: "kBits/sec", Size: 30460266, SizeUnit: "bytes", Chunk: 0, FName: "/Volumes/Space/archive/media/video/PMB/12-23-2008(1)/20081219122438.mpg"},
 				Transmitted{Type: "Dedup", Stamp: "2018-10-10 01:40:42", Speed: 0, SpeedUnit: "", Size: 0, SizeUnit: "bytes", Chunk: 0, FName: "/Users/daniel/Library/Containers/com.evernote.Evernote/Data/Library/Application Support/com.evernote.Evernote/puppetmaster/OutputsCache.json"},
 				Transmitted{Type: "CombinedHeader", Stamp: "2018-10-01 15:25:14", Speed: 3822, SpeedUnit: "kBits/sec", Size: 3489825, SizeUnit: "bytes*", Chunk: 3, FName: "Multiple small files batched in one request, the 3 files are listed below:"},
@@ -233,29 +229,34 @@ func TestSplitFields(t *testing.T) {
 		},
 	}
 
-	for _, tt := range data {
-		infile, err := os.Open(tt.filename)
-		if err != nil {
-			t.Fatal(err)
-		}
-		scanner := bufio.NewScanner(infile)
-		list := make([]Transmitted, 0)
-		lastCombined := Transmitted{}
-		for scanner.Scan() {
-			line := scanner.Text()
-			tx, txtyp := splitFields(line, &lastCombined)
-			// tx, txtyp := splitFieldsFast(line, &lastCombined)
-			tx.Type = txtyp
-			list = append(list, tx)
-			if tx.Type == combinedHeader {
-				lastCombined = tx
+	for _, isFastMethod := range []bool{false, true} {
+		for _, tt := range data {
+			infile, err := os.Open(tt.filename)
+			if err != nil {
+				t.Fatal(err)
 			}
+			scanner := bufio.NewScanner(infile)
+			list := make([]Transmitted, 0)
+			lastCombined := Transmitted{}
+			for scanner.Scan() {
+				line := scanner.Text()
+				var tx Transmitted
+				if isFastMethod {
+					tx = splitFieldsFast(line, &lastCombined)
+				} else {
+					tx = splitFields(line, &lastCombined)
+				}
+				list = append(list, tx)
+				if tx.Type == combinedHeader {
+					lastCombined = tx
+				}
 
-		}
-		got := list
-		if !reflect.DeepEqual(tt.out, got) {
-			// t.Errorf("Test:%s\nexpected:\n%sgot:\n %s", tt.filename, vslice(tt.out), vslice(got))
-			t.Errorf("ZZ %#v", got)
+			}
+			got := list
+			if !reflect.DeepEqual(tt.out, got) {
+				t.Errorf("Test: isFastMethod:%v %s\nexpected:\n%sgot:\n %s", isFastMethod, tt.filename, vslice(tt.out), vslice(got))
+				// t.Errorf("ZZ %#v", got)
+			}
 		}
 	}
 
@@ -292,7 +293,14 @@ func TestParseTransmited(t *testing.T) {
 		},
 	}
 	for _, tt := range data {
-		got := ParseTransmited(tt.filename)
+		infile, err := os.Open(tt.filename)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		got := ParseTransmited(infile)
+		infile.Close()
+
 		if !reflect.DeepEqual(tt.out, got) {
 			t.Errorf("Test:%s\nexpected:\n%sgot:\n %s", tt.filename, vslice(tt.out), vslice(got))
 			// t.Errorf("ZZ %#v", got)

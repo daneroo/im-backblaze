@@ -22,45 +22,50 @@ type Transmitted struct {
 }
 
 /*
-Four examples of what we are parsing:
-Normal:
-2018-10-02 13:27:18 -  large  - throttle manual   11 -  3112 kBits/sec - 30460266 bytes - /Volumes/Space/archive/media/video/PMB/12-23-2008(1)/20081219122438.mpg
+Examples of what we are parsing:
 
-Deduped (not sent):
+Normal:
+2018-10-02 02:39:30 -  large  - throttle manual   11 -  3450 kBits/sec -  7827914 bytes - /Volumes/Space/archive/media/mp3/creative/Binye (Respect)/08-Seourouba.mp3
+2018-10-02 13:27:18 -  large  - throttle manual   11 -  3112 kBits/sec - 30460266 bytes - /Volumes/Space/archive/media/video/PMB/12-23-2008(1)/20081219122438.mpg
+# this line is special, has different field lengths
+2018-10-17 18:39:45 -  small  - throttle auto     11 -     8 kBits/sec - 1 bytes - /Volumes/Space/fake_filename_to_refresh_volume_dashboard.txt
+
+Dedup (not sent):
 2018-10-10 01:40:42 -  small  - throttle x           -           dedup - 0 bytes - /Users/daniel/Library/Containers/com.evernote.Evernote/Data/Library/Application Support/com.evernote.Evernote/puppetmaster/OutputsCache.json
+2018-10-01 03:35:31 -  small  - throttle x           -           dedup - 0 bytes - /Users/daniel/.bash_sessions/34D616D0-93F6-4AF2-AD60-9A5D4B83C76A.historynew
+2018-10-01 03:35:48 -  small  - throttle x           -           dedup - 0 bytes - /Volumes/Space/archive/media/photo/dadSulbalcon/200308/Catherine35Ans2003/130-3052_IMG.JPG
+
+DedupChunked (not sent):
+2018-10-13 10:55:33 -  small  - throttle x           -           dedup - 0 bytes - Chunk 00505 of /Users/daniel/Library/Containers/com.docker.docker/Data/vms/0/Docker.qcow2
+2018-10-13 10:55:33 -  small  - throttle x           -           dedup - 0 bytes - Chunk 00506 of /Users/daniel/Library/Containers/com.docker.docker/Data/vms/0/Docker.qcow2
+2018-10-13 10:55:33 -  small  - throttle x           -           dedup - 0 bytes - Chunk 00507 of /Users/daniel/Library/Containers/com.docker.docker/Data/vms/0/Docker.qcow2
 
 Combined (Multiple files combined into one transmission):
+-CombinedHeader
 2018-10-01 15:25:14 -  large  - throttle manual   11 -  3822 kBits/sec - 10469477 bytes - Multiple small files batched in one request, the 3 files are listed below:
+-CombinedContinued
 2018-10-01 15:25:14 -                                                                   - /Volumes/Space/archive/media/photo/catou/2005_11_02-R/IMG_0927.JPG
 2018-10-01 15:25:14 -                                                                   - /Volumes/Space/archive/media/photo/catou/2007-07-04-lesours/IMG_4941.JPG
 2018-10-01 15:25:14 -                                                                   - /Users/daniel/GoogleDrive/Google Photos/2013/12/IMG_1490.JPG
 
 Chunked (1 file split into multiple chunks)
+2018-10-02 13:30:58 -  small  - throttle manual   11 -    28 kBits/sec -     7290 bytes - Chunk 00003 of /Volumes/Space/archive/media/ebooks/ebook-1100/The UNIX CD Bookshelf, v3.0 (2003).zip
+2018-10-02 13:31:15 -  large  - throttle manual   11 -  4143 kBits/sec - 10486490 bytes - Chunk 00000 of /Volumes/Space/archive/media/ebooks/ebook-1100/The UNIX CD Bookshelf, v3.0 (2003).zip
 2018-10-11 10:49:34 -  large  - throttle auto     11 -  1643 kBits/sec -   410714 bytes - Chunk 00519 of /Users/daniel/Library/Containers/com.docker.docker/Data/vms/0/Docker.qcow2
 2018-10-11 10:49:35 -  large  - throttle auto     11 -  1973 kBits/sec -   634794 bytes - Chunk 0052a of /Users/daniel/Library/Containers/com.docker.docker/Data/vms/0/Docker.qcow2
 2018-10-11 10:49:37 -  large  - throttle auto     11 -  2604 kBits/sec -   834682 bytes - Chunk 00545 of /Users/daniel/Library/Containers/com.docker.docker/Data/vms/0/Docker.qcow2
+
 */
 
-// ParseTransmited parses transmitteds logs
-func ParseTransmited(infilename string) []Transmitted {
-	fmt.Fprintf(os.Stderr, "-= Parsing %s\n", infilename)
-	infile, err := os.Open(infilename)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer infile.Close()
-	return parseTransmited(infile)
-}
-
-func parseTransmited(r io.Reader) []Transmitted {
+// ParseTransmited parses transmitted logs
+func ParseTransmited(r io.Reader) []Transmitted {
 
 	scanner := bufio.NewScanner(r)
 	list := make([]Transmitted, 0, 1000)
 	skipped := 0
 
-	compare := true
+	compare := false
 	var tx2, tx3 Transmitted
-	var txtyp2, txtyp3 txRecordType
 	lastCombined2 := Transmitted{}
 	lastCombined3 := Transmitted{}
 
@@ -70,28 +75,27 @@ func parseTransmited(r io.Reader) []Transmitted {
 		// Orig 8.1s : Fast 5.3 : both 9.6
 
 		if compare {
-			tx2, txtyp2 = splitFields(line, &lastCombined2)
+			tx2 = splitFields(line, &lastCombined2)
 		}
 		// tx3, txtyp3 = splitFields(line, &lastCombined3)
-		tx3, txtyp3 = splitFieldsFast(line, &lastCombined3)
-		countType(txtyp3, line)
+		tx3 = splitFieldsFast(line, &lastCombined3)
+		countType(tx3.Type, line)
 
-		if txtyp3 == empty {
+		if tx3.Type == empty {
 			skipped++
 			continue
 		}
-		if txtyp2 == combinedHeader {
+		if tx2.Type == combinedHeader {
 			lastCombined2 = tx2
 		}
-		if txtyp3 == combinedHeader {
+		if tx3.Type == combinedHeader {
 			lastCombined3 = tx3
 		}
 
-		if compare && (txtyp2 != txtyp3 || tx2 != tx3) {
-			fmt.Fprintf(os.Stderr, "UnMatched-2,3 %s-%s\n%#v\n%#v\n%s\n", txtyp2, txtyp3, tx2, tx3, line)
+		if compare && (tx2 != tx3) {
+			fmt.Fprintf(os.Stderr, "UnMatched-2,3\n%#v\n%#v\n%s\n", tx2, tx3, line)
 		}
-		tx3.Type = txtyp3
-		if txtyp3 == dedup || txtyp3 == dedupChunked || txtyp3 == combinedHeader {
+		if tx3.Type == dedup || tx3.Type == dedupChunked || tx3.Type == combinedHeader {
 			skipped++
 			continue
 		}
@@ -123,14 +127,15 @@ const (
 	chunked           txRecordType = "Chunked"
 )
 
-func splitFields(line string, lastCombined *Transmitted) (Transmitted, txRecordType) {
+func splitFields(line string, lastCombined *Transmitted) Transmitted {
 	tx := Transmitted{}
-	txtyp := normal
 
 	if 0 == len(strings.TrimSpace(line)) {
-		return tx, empty
+		tx.Type = empty
+		return tx
 	}
 
+	tx.Type = normal
 	fields := strings.SplitN(line, " - ", 6)
 
 	// should be 3 or six fields, if second field is blank, must be 3.
@@ -146,7 +151,7 @@ func splitFields(line string, lastCombined *Transmitted) (Transmitted, txRecordT
 		fmt.Sscanf(strings.TrimSpace(fields[4]), "%d %s", &tx.Size, &tx.SizeUnit)
 		// skip deduped
 		if tx.Speed == 0 && tx.Size == 0 {
-			txtyp = dedup
+			tx.Type = dedup
 		}
 	}
 
@@ -155,11 +160,10 @@ func splitFields(line string, lastCombined *Transmitted) (Transmitted, txRecordT
 	if strings.HasPrefix(tx.FName, "Chunk") {
 		_, err := fmt.Sscanf(tx.FName, "Chunk %x of", &tx.Chunk)
 		tx.FName = tx.FName[15:len(tx.FName)]
-		if txtyp == dedup {
-			txtyp = dedupChunked
+		if tx.Type == dedup {
+			tx.Type = dedupChunked
 		} else {
-			txtyp = chunked
-
+			tx.Type = chunked
 		}
 		if err != nil {
 			log.Printf("Unable to parse chunked record:\n%s", line)
@@ -175,7 +179,7 @@ func splitFields(line string, lastCombined *Transmitted) (Transmitted, txRecordT
 		// now spread the size into tx.chunk parts!
 		tx.Size = tx.Size / tx.Chunk
 		tx.SizeUnit = "bytes*" //estimated
-		txtyp = combinedHeader
+		tx.Type = combinedHeader
 	}
 
 	if len(fields) == 3 {
@@ -186,10 +190,10 @@ func splitFields(line string, lastCombined *Transmitted) (Transmitted, txRecordT
 		tx.SpeedUnit = lastCombined.SpeedUnit
 
 		lastCombined.Chunk-- // combined chunks are numbered -7,-6,..,-1
-		txtyp = combinedContinued
+		tx.Type = combinedContinued
 	}
 
-	return tx, txtyp
+	return tx
 }
 
 var countTypes map[txRecordType]int
@@ -204,19 +208,20 @@ func countType(typ txRecordType, line string) {
 	// }
 }
 
-func splitFieldsFast(line string, lastCombined *Transmitted) (Transmitted, txRecordType) {
+func splitFieldsFast(line string, lastCombined *Transmitted) Transmitted {
 	tx := Transmitted{}
-	txtyp := normal
 
 	if 0 == len(strings.TrimSpace(line)) {
-		return tx, empty
+		tx.Type = empty
+		return tx
 	}
 
+	tx.Type = normal
 	tx.Stamp = line[0:19]
 	if line[65:70] == "dedup" {
 		tx.FName = line[83:len(line)]
 		tx.SizeUnit = "bytes" // just to conform, but 0 is 0!
-		txtyp = dedup
+		tx.Type = dedup
 		//  No other (non-default) fields required
 		if strings.HasPrefix(tx.FName, "Chunk") {
 			_, err := fmt.Sscanf(tx.FName, "Chunk %x of", &tx.Chunk)
@@ -225,7 +230,7 @@ func splitFieldsFast(line string, lastCombined *Transmitted) (Transmitted, txRec
 				log.Printf("Unable to parse dedup-chunked record:\n%s", line)
 				log.Fatal(err)
 			}
-			txtyp = dedupChunked
+			tx.Type = dedupChunked
 		}
 		// fmt.Printf("|%s|%s|%s|\n", tx.Stamp, mid, tx.FName)
 	} else {
@@ -236,7 +241,7 @@ func splitFieldsFast(line string, lastCombined *Transmitted) (Transmitted, txRec
 		if preBeginOfPath == -1 {
 			preBeginOfPath = strings.Index(line, " - Multiple")
 		}
-		if preBeginOfPath != -1 && preBeginOfPath != 87 && preBeginOfPath != 81 {
+		if preBeginOfPath != -1 && preBeginOfPath != 87 && preBeginOfPath != 80 {
 			fmt.Fprintf(os.Stderr, "-= Unexpected line structure (might be ok)\n")
 			fmt.Fprintf(os.Stderr, "-begin: %d |%s|\n", preBeginOfPath, line)
 			fmt.Fprintf(os.Stderr, "+begin: %d |%s|\n", preBeginOfPath, line[preBeginOfPath+3:len(line)])
@@ -246,7 +251,7 @@ func splitFieldsFast(line string, lastCombined *Transmitted) (Transmitted, txRec
 
 		if len(strings.TrimSpace(mid)) == 0 {
 			// combinedContinued
-			txtyp = combinedContinued
+			tx.Type = combinedContinued
 			//  No other (non-default) fields required
 			tx.Chunk = -lastCombined.Chunk
 			tx.Size = lastCombined.Size
@@ -257,7 +262,7 @@ func splitFieldsFast(line string, lastCombined *Transmitted) (Transmitted, txRec
 			lastCombined.Chunk-- // combined chunks are numbered -7,-6,..,-1
 		} else if strings.HasPrefix(tx.FName, "Multiple small files batched in one request") {
 			// combinedHeader
-			txtyp = combinedHeader
+			tx.Type = combinedHeader
 			_, err := fmt.Sscanf(tx.FName, "Multiple small files batched in one request, the %d files are listed below:", &tx.Chunk)
 			if err != nil {
 				log.Printf("Unable to parse combinedHeader record:\n%s", line)
@@ -272,7 +277,7 @@ func splitFieldsFast(line string, lastCombined *Transmitted) (Transmitted, txRec
 			tx.SizeUnit = "bytes*" //estimated
 		} else if strings.HasPrefix(tx.FName, "Chunk") {
 			// chunked
-			txtyp = chunked
+			tx.Type = chunked
 			_, err := fmt.Sscanf(tx.FName, "Chunk %x of", &tx.Chunk)
 			tx.FName = tx.FName[15:len(tx.FName)]
 			if err != nil {
@@ -288,7 +293,7 @@ func splitFieldsFast(line string, lastCombined *Transmitted) (Transmitted, txRec
 			// fmt.Printf("chunked:%d: %#v\n", txtyp, tx)
 		} else {
 			// normal
-			txtyp = normal
+			tx.Type = normal
 			fields := strings.SplitN(mid, " - ", 4)
 			// ignore errors, default struct values are OK
 			fmt.Sscanf(strings.TrimSpace(fields[2]), "%d %s", &tx.Speed, &tx.SpeedUnit)
@@ -299,5 +304,5 @@ func splitFieldsFast(line string, lastCombined *Transmitted) (Transmitted, txRec
 		}
 
 	}
-	return tx, txtyp
+	return tx
 }
