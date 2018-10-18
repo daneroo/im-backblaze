@@ -76,7 +76,7 @@ func BenchmarkSpliFields(b *testing.B) {
 		splitFields(line, &lastCombined)
 	}
 }
-func BenchmarkSpliFieldsFsat(b *testing.B) {
+func BenchmarkSpliFieldsFast(b *testing.B) {
 	lastCombined := Transmitted{}
 	line := "2018-10-02 13:27:18 -  large  - throttle manual   11 -  3112 kBits/sec - 30460266 bytes - /Volumes/Space/archive/media/video/PMB/12-23-2008(1)/20081219122438.mpg"
 	b.ResetTimer()

@@ -11,6 +11,7 @@ import (
 
 // Transmitted represent a line in the transmitted logs
 type Transmitted struct {
+	Type      string `json:"type"`
 	Stamp     string `json:"stamp"`
 	Speed     int    `json:"-"`
 	SpeedUnit string `json:"-"`
@@ -57,15 +58,25 @@ func parseTransmited(r io.Reader) []Transmitted {
 	list := make([]Transmitted, 0, 1000)
 	skipped := 0
 
+	compare := true
+	var tx2, tx3 Transmitted
+	var txtyp2, txtyp3 txRecordType
 	lastCombined2 := Transmitted{}
 	lastCombined3 := Transmitted{}
 
 	for scanner.Scan() {
 		line := scanner.Text()
 
-		tx2, txtyp2 := splitFields(line, &lastCombined2)
-		tx3, txtyp3 := splitFieldsFast(line, &lastCombined3)
-		if txtyp2 == empty {
+		// Orig 8.1s : Fast 5.3 : both 9.6
+
+		if compare {
+			tx2, txtyp2 = splitFields(line, &lastCombined2)
+		}
+		// tx3, txtyp3 = splitFields(line, &lastCombined3)
+		tx3, txtyp3 = splitFieldsFast(line, &lastCombined3)
+		countType(txtyp3, line)
+
+		if txtyp3 == empty {
 			skipped++
 			continue
 		}
@@ -76,14 +87,15 @@ func parseTransmited(r io.Reader) []Transmitted {
 			lastCombined3 = tx3
 		}
 
-		if txtyp2 != txtyp3 || tx2 != tx3 {
-			fmt.Printf("UnMatched-2,3 %d-%d\n%#v\n%#v\n", txtyp2, txtyp3, tx2, tx3)
+		if compare && (txtyp2 != txtyp3 || tx2 != tx3) {
+			fmt.Fprintf(os.Stderr, "UnMatched-2,3 %s-%s\n%#v\n%#v\n%s\n", txtyp2, txtyp3, tx2, tx3, line)
 		}
 
 		if txtyp3 == dedup || txtyp3 == combinedHeader {
 			skipped++
 			continue
 		}
+
 		list = append(list, tx3)
 	}
 	fmt.Fprintf(os.Stderr, "-= Parsed %d lines (%d skipped)\n", len(list), skipped)
@@ -92,18 +104,23 @@ func parseTransmited(r io.Reader) []Transmitted {
 		log.Fatal(err)
 	}
 
+	// Print Counts, and optionally reset
+	// fmt.Fprintf(os.Stderr, "|countTypes|=%d %#v\n", len(countTypes), countTypes)
+	// countTypes = make(map[txRecordType]int)
+
 	return list
 }
 
-type txRecordType int
+type txRecordType string
 
 const (
-	empty txRecordType = iota
-	normal
-	dedup
-	combinedHeader
-	combinedContinued
-	chunked
+	empty             txRecordType = "Empty"
+	normal            txRecordType = "Normal"
+	dedup             txRecordType = "Dedup"
+	dedupChunked      txRecordType = "DedupChunked"
+	combinedHeader    txRecordType = "CombinedHeader"
+	combinedContinued txRecordType = "CombinedContinued"
+	chunked           txRecordType = "Chunked"
 )
 
 func splitFields(line string, lastCombined *Transmitted) (Transmitted, txRecordType) {
@@ -138,8 +155,11 @@ func splitFields(line string, lastCombined *Transmitted) (Transmitted, txRecordT
 	if strings.HasPrefix(tx.FName, "Chunk") {
 		_, err := fmt.Sscanf(tx.FName, "Chunk %x of", &tx.Chunk)
 		tx.FName = tx.FName[15:len(tx.FName)]
-		if txtyp != dedup {
+		if txtyp == dedup {
+			txtyp = dedupChunked
+		} else {
 			txtyp = chunked
+
 		}
 		if err != nil {
 			log.Printf("Unable to parse chunked record:\n%s", line)
@@ -172,25 +192,26 @@ func splitFields(line string, lastCombined *Transmitted) (Transmitted, txRecordT
 	return tx, txtyp
 }
 
+var countTypes map[txRecordType]int
+
+func countType(typ txRecordType, line string) {
+	if countTypes == nil {
+		countTypes = make(map[txRecordType]int)
+	}
+	countTypes[typ] = countTypes[typ] + 1
+	// if countTypes[typ] < 3 {
+	// 	fmt.Printf("--%s:%d--\n%s\n", typ, countTypes[typ], line)
+	// }
+}
+
 func splitFieldsFast(line string, lastCombined *Transmitted) (Transmitted, txRecordType) {
 	tx := Transmitted{}
 	txtyp := normal
 
-	/*
-		2018-10-11 10:49:37 -  large  - throttle auto     11 -  2604 kBits/sec -   834682 bytes - Chunk 00545 of /Users/daniel/Library/Containers/com.docker.docker/Data/vms/0/Docker.qcow2
-	*/
 	if 0 == len(strings.TrimSpace(line)) {
 		return tx, empty
 	}
 
-	// + empty txRecordType = iota
-	// normal
-	// + dedup
-	// + combinedHeader
-	// + combinedContinued
-	// chunked
-
-	// n, err := fmt.Sscanf(line, "%19s - %65s - %s", &s1, &s2, &s3)
 	tx.Stamp = line[0:19]
 	if line[65:70] == "dedup" {
 		tx.FName = line[83:len(line)]
@@ -204,6 +225,7 @@ func splitFieldsFast(line string, lastCombined *Transmitted) (Transmitted, txRec
 				log.Printf("Unable to parse dedup-chunked record:\n%s", line)
 				log.Fatal(err)
 			}
+			txtyp = dedupChunked
 		}
 		// fmt.Printf("|%s|%s|%s|\n", tx.Stamp, mid, tx.FName)
 	} else {
@@ -220,8 +242,6 @@ func splitFieldsFast(line string, lastCombined *Transmitted) (Transmitted, txRec
 		}
 		mid := line[22:preBeginOfPath]
 		tx.FName = line[preBeginOfPath+3 : len(line)]
-
-		// fmt.Printf("|%s|%s|%s|\n", tx.Stamp, mid, tx.FName)
 
 		if len(strings.TrimSpace(mid)) == 0 {
 			// combinedContinued
@@ -278,6 +298,5 @@ func splitFieldsFast(line string, lastCombined *Transmitted) (Transmitted, txRec
 		}
 
 	}
-
 	return tx, txtyp
 }
