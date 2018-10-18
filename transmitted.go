@@ -11,14 +11,14 @@ import (
 
 // Transmitted represent a line in the transmitted logs
 type Transmitted struct {
-	Type      string `json:"type"`
-	Stamp     string `json:"stamp"`
-	Speed     int    `json:"-"`
-	SpeedUnit string `json:"-"`
-	Size      int    `json:"size"`
-	SizeUnit  string `json:"-"`
-	Chunk     int    `json:"chunk"`
-	FName     string `json:"fname"`
+	Type      txRecordType `json:"type"`
+	Stamp     string       `json:"stamp"`
+	Speed     int          `json:"-"`
+	SpeedUnit string       `json:"-"`
+	Size      int          `json:"size"`
+	SizeUnit  string       `json:"-"`
+	Chunk     int          `json:"chunk"`
+	FName     string       `json:"fname"`
 }
 
 /*
@@ -90,8 +90,8 @@ func parseTransmited(r io.Reader) []Transmitted {
 		if compare && (txtyp2 != txtyp3 || tx2 != tx3) {
 			fmt.Fprintf(os.Stderr, "UnMatched-2,3 %s-%s\n%#v\n%#v\n%s\n", txtyp2, txtyp3, tx2, tx3, line)
 		}
-
-		if txtyp3 == dedup || txtyp3 == combinedHeader {
+		tx3.Type = txtyp3
+		if txtyp3 == dedup || txtyp3 == dedupChunked || txtyp3 == combinedHeader {
 			skipped++
 			continue
 		}
@@ -236,9 +236,10 @@ func splitFieldsFast(line string, lastCombined *Transmitted) (Transmitted, txRec
 		if preBeginOfPath == -1 {
 			preBeginOfPath = strings.Index(line, " - Multiple")
 		}
-		if preBeginOfPath != -1 && preBeginOfPath != 87 && preBeginOfPath != 80 {
-			fmt.Printf("-begin: %d |%s|\n", preBeginOfPath, line)
-			fmt.Printf("+begin: %d |%s|\n", preBeginOfPath, line[preBeginOfPath+3:len(line)])
+		if preBeginOfPath != -1 && preBeginOfPath != 87 && preBeginOfPath != 81 {
+			fmt.Fprintf(os.Stderr, "-= Unexpected line structure (might be ok)\n")
+			fmt.Fprintf(os.Stderr, "-begin: %d |%s|\n", preBeginOfPath, line)
+			fmt.Fprintf(os.Stderr, "+begin: %d |%s|\n", preBeginOfPath, line[preBeginOfPath+3:len(line)])
 		}
 		mid := line[22:preBeginOfPath]
 		tx.FName = line[preBeginOfPath+3 : len(line)]
