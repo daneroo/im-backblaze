@@ -2,9 +2,11 @@
 
 const width = 960
 const height = 500
-const n = 20
-const m = 200
-const k = 10
+
+const n = 20// data sets : 20
+const m = 200 // t-points : 200
+const k = 10 // number of bumps per data set : 10
+
 const stack = d3.stack()
   .keys(d3.range(n))
   .order(d3.stackOrderNone) // stackOrderAscending  stackOrderDescending  stackOrderInsideOut
@@ -32,7 +34,9 @@ const area = d3.area()
   .y1(d => y(d[1]))
 
 function randomize () {
+  // this n is borked
   const layers = stack(d3.transpose(Array.from({ length: n }, () => bumps(m, k))))
+  console.log('n,|layers|,layers', n, layers.length, layers)
   y.domain([
     d3.min(layers, l => d3.min(l, d => d[0])),
     d3.max(layers, l => d3.max(l, d => d[1]))
@@ -50,6 +54,7 @@ const path = svg.selectAll('path')
   path
     .data(randomize)
     .transition()
+    .ease(d3.easeQuad)
     .duration(1500)
     .attr('d', area)
 }, 2500)
@@ -60,16 +65,17 @@ const path = svg.selectAll('path')
 // Inspired by Lee Byron’s test data generator.
 function bump (a, n) {
   const x = 1 / (0.1 + Math.random())
-  const y = 2 * Math.random() - 0.5
-  const z = 10 / (0.1 + Math.random())
+  const y = 2 * Math.random() - 0.5 // time offset of the bump: [-.5,1.5]
+  const z = 10 / (0.1 + Math.random()) // time spread of the bump: higher=>thinner: [9,100]
   for (let i = 0; i < n; ++i) {
     const w = (i / n - y) * z
     a[i] += x * Math.exp(-w * w)
   }
 }
 function bumps (n, m) {
+  console.log('bumps: n,m', n, m)
   const a = []
-  for (let i = 0; i < n; ++i) a[i] = 0
+  for (let i = 0; i < n; ++i) a[i] = 0 // Math.random() * 10 - 3
   for (let i = 0; i < m; ++i) bump(a, n)
   return a
 };
