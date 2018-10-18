@@ -16,6 +16,7 @@ In the course of it's operation Backblaze leaves these log files, and we wish to
 Lists are in: `/Library/Backblaze.bzpkg/bzdata/bzfilelists`
 
 ## References
+- [Lees Byron's _Stacked Graphs – Geometry & Aesthetics_](https://leebyron.com/streamgraph/)
 - [Interactive streamgraph](http://bl.ocks.org/WillTurman/4631136)
 - [StreamGraph Demos from Flowning Data](https://flowingdata.com/tag/streamgraph/)
 - [D3 Zoomable Sunburst](https://bl.ocks.org/mbostock/4348373)
