@@ -57,16 +57,14 @@ func parseTransmited(r io.Reader) []Transmitted {
 	list := make([]Transmitted, 0, 1000)
 	skipped := 0
 
-	lastCombined := Transmitted{}
 	lastCombined2 := Transmitted{}
 	lastCombined3 := Transmitted{}
 
 	for scanner.Scan() {
 		line := scanner.Text()
 
-		txtyp0 := normal
 		tx2, txtyp2 := splitFields(line, &lastCombined2)
-		tx3, txtyp3 := splitFields3(line, &lastCombined3)
+		tx3, txtyp3 := splitFieldsFast(line, &lastCombined3)
 		if txtyp2 == empty {
 			skipped++
 			continue
@@ -78,88 +76,21 @@ func parseTransmited(r io.Reader) []Transmitted {
 			lastCombined3 = tx3
 		}
 
-		fields := strings.SplitN(line, " - ", 6)
-
-		// should be 3 or six fields, if second field is blank, must be 3.
-		// BUT: Filename may have ' - 's
-		if len(fields[1]) == 65 && len(strings.TrimSpace(fields[1])) == 0 && len(fields) > 3 {
-			fields = strings.SplitN(line, " - ", 3)
-			// fmt.Fprintf(os.Stderr, "=reformat %d %q\n", len(fields), fields)
-		}
-
-		tx := Transmitted{}
-		tx.Stamp = fields[0]
-		if len(fields) == 6 {
-			// ignore errors, default struct values are OK
-			fmt.Sscanf(strings.TrimSpace(fields[3]), "%d %s", &tx.Speed, &tx.SpeedUnit)
-			fmt.Sscanf(strings.TrimSpace(fields[4]), "%d %s", &tx.Size, &tx.SizeUnit)
-			// skip deduped
-			if tx.Speed == 0 && tx.Size == 0 {
-				txtyp0 = dedup
-			}
-		}
-
-		tx.FName = fields[len(fields)-1]
-		// if Chunked, will replace fname, and set chunk, on error, no action
-		if strings.HasPrefix(tx.FName, "Chunk") {
-			_, err := fmt.Sscanf(tx.FName, "Chunk %x of", &tx.Chunk)
-			tx.FName = tx.FName[15:len(tx.FName)]
-
-			if txtyp0 != dedup {
-				txtyp0 = chunked
-			}
-			if err != nil {
-				log.Printf("Unable to parse chunked record:\n%s", line)
-				log.Fatal(err)
-			}
-		}
-
-		if strings.HasPrefix(tx.FName, "Multiple small files batched in one request") {
-			lastCombined = tx
-			_, err := fmt.Sscanf(tx.FName, "Multiple small files batched in one request, the %d files are listed below:", &lastCombined.Chunk)
-			if err != nil {
-				log.Fatal(err)
-			}
-			// now spread the size into tx.chunk parts!
-			lastCombined.Size = lastCombined.Size / lastCombined.Chunk
-			lastCombined.SizeUnit = "bytes*" //estimated
-			tx = lastCombined
-			txtyp0 = combinedHeader
-
-			// fmt.Printf("------- %d - %#v\n", tx.Size, lastCombined)
-			// continue
-		}
-
-		if len(fields) == 3 {
-			tx.Chunk = -lastCombined.Chunk
-			tx.Size = lastCombined.Size
-			tx.SizeUnit = lastCombined.SizeUnit
-			tx.Speed = lastCombined.Speed
-			tx.SpeedUnit = lastCombined.SpeedUnit
-
-			lastCombined.Chunk-- // combined chunks are numbered -7,-6,..,-1
-			txtyp0 = combinedContinued
-		}
-
-		if txtyp0 != txtyp2 || tx != tx2 {
-			fmt.Printf("UnMatched-0,2 %d-%d\n%#v\n%#v\n", txtyp0, txtyp2, tx, tx2)
-		}
 		if txtyp2 != txtyp3 || tx2 != tx3 {
 			fmt.Printf("UnMatched-2,3 %d-%d\n%#v\n%#v\n", txtyp2, txtyp3, tx2, tx3)
 		}
 
-		if txtyp0 == dedup || txtyp0 == combinedHeader {
+		if txtyp3 == dedup || txtyp3 == combinedHeader {
 			skipped++
 			continue
 		}
-		list = append(list, tx)
+		list = append(list, tx3)
 	}
-	// fmt.Fprintf(os.Stderr, "-= Parsed %d lines (%d skipped)\n", len(list), skipped)
+	fmt.Fprintf(os.Stderr, "-= Parsed %d lines (%d skipped)\n", len(list), skipped)
 
 	if err := scanner.Err(); err != nil {
 		log.Fatal(err)
 	}
-	// fmt.Printf("%#v\n", list)
 
 	return list
 }
@@ -241,7 +172,7 @@ func splitFields(line string, lastCombined *Transmitted) (Transmitted, txRecordT
 	return tx, txtyp
 }
 
-func splitFields3(line string, lastCombined *Transmitted) (Transmitted, txRecordType) {
+func splitFieldsFast(line string, lastCombined *Transmitted) (Transmitted, txRecordType) {
 	tx := Transmitted{}
 	txtyp := normal
 
@@ -276,8 +207,19 @@ func splitFields3(line string, lastCombined *Transmitted) (Transmitted, txRecord
 		}
 		// fmt.Printf("|%s|%s|%s|\n", tx.Stamp, mid, tx.FName)
 	} else {
-		mid := line[22:87]
-		tx.FName = line[90:len(line)]
+		preBeginOfPath := strings.Index(line, " - /")
+		if preBeginOfPath == -1 {
+			preBeginOfPath = strings.Index(line, " - Chunk")
+		}
+		if preBeginOfPath == -1 {
+			preBeginOfPath = strings.Index(line, " - Multiple")
+		}
+		if preBeginOfPath != -1 && preBeginOfPath != 87 && preBeginOfPath != 80 {
+			fmt.Printf("-begin: %d |%s|\n", preBeginOfPath, line)
+			fmt.Printf("+begin: %d |%s|\n", preBeginOfPath, line[preBeginOfPath+3:len(line)])
+		}
+		mid := line[22:preBeginOfPath]
+		tx.FName = line[preBeginOfPath+3 : len(line)]
 
 		// fmt.Printf("|%s|%s|%s|\n", tx.Stamp, mid, tx.FName)
 

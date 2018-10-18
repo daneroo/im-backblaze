@@ -7,6 +7,52 @@ import (
 	"testing"
 )
 
+func ss(line string) (string, string, string) {
+	var s1, s2, s3 string
+	s1 = line[0:19]
+	if line[65:70] == "dedup" {
+		s2 = line[22:80]
+		s3 = line[83 : len(line)-1]
+	} else {
+		s2 = line[22:87]
+		s3 = line[90 : len(line)-1]
+	}
+	return s1, s2, s3
+}
+
+func BenchmarkIndex(b *testing.B) {
+	line := "2018-10-02 13:27:18 -  large  - throttle manual   11 -  3112 kBits/sec - 30460266 bytes - /Volumes/Space/archive/media/video/PMB/12-23-2008(1)/20081219122438.mpg"
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+
+		strings.Index(line[80:len(line)], " -  /") // 64 ns
+		// strings.Index(line, " -  /") // 120 ns
+		// strings.LastIndex(line, " -  /") // 304 ns
+		// strings.LastIndex(line[80:len(line)], " -  /") // 160 ns
+	}
+}
+func BenchmarkLastIndex(b *testing.B) {
+	line := "2018-10-02 13:27:18 -  large  - throttle manual   11 -  3112 kBits/sec - 30460266 bytes - /Volumes/Space/archive/media/video/PMB/12-23-2008(1)/20081219122438.mpg"
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+
+		/*fields :=*/
+		strings.LastIndex(line, " -  /")
+	}
+}
+
+func BenchmarkSplitSlice(b *testing.B) {
+	line := "2018-10-02 13:27:18 -  large  - throttle manual   11 -  3112 kBits/sec - 30460266 bytes - /Volumes/Space/archive/media/video/PMB/12-23-2008(1)/20081219122438.mpg"
+	b.ResetTimer()
+	// sum := 0
+	for i := 0; i < b.N; i++ {
+		ss(line)
+		// s1, s2, s3 := ss(line)
+		// sum += len(s1) + len(s2) + len(s3)
+	}
+	//fmt.Printf("sum=%d", sum)
+}
+
 func BenchmarkSplitN6(b *testing.B) {
 	line := "2018-10-02 13:27:18 -  large  - throttle manual   11 -  3112 kBits/sec - 30460266 bytes - /Volumes/Space/archive/media/video/PMB/12-23-2008(1)/20081219122438.mpg"
 	b.ResetTimer()
@@ -22,23 +68,20 @@ func BenchmarkSplitN3(b *testing.B) {
 	}
 }
 
-func ss(line string) (string, string, string) {
-	var s1, s2, s3 string
-	s1 = line[0:19]
-	if line[65:70] == "dedup" {
-		s2 = line[22:80]
-		s3 = line[83 : len(line)-1]
-	} else {
-		s2 = line[22:87]
-		s3 = line[90 : len(line)-1]
-	}
-	return s1, s2, s3
-}
-func BenchmarkSplitSlice(b *testing.B) {
+func BenchmarkSpliFields(b *testing.B) {
+	lastCombined := Transmitted{}
 	line := "2018-10-02 13:27:18 -  large  - throttle manual   11 -  3112 kBits/sec - 30460266 bytes - /Volumes/Space/archive/media/video/PMB/12-23-2008(1)/20081219122438.mpg"
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		ss(line)
+		splitFields(line, &lastCombined)
+	}
+}
+func BenchmarkSpliFieldsFsat(b *testing.B) {
+	lastCombined := Transmitted{}
+	line := "2018-10-02 13:27:18 -  large  - throttle manual   11 -  3112 kBits/sec - 30460266 bytes - /Volumes/Space/archive/media/video/PMB/12-23-2008(1)/20081219122438.mpg"
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		splitFieldsFast(line, &lastCombined)
 	}
 }
 
