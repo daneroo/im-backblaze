@@ -58,14 +58,24 @@ func parseTransmited(r io.Reader) []Transmitted {
 	skipped := 0
 
 	lastCombined := Transmitted{}
+	lastCombined2 := Transmitted{}
+	lastCombined3 := Transmitted{}
 
 	for scanner.Scan() {
 		line := scanner.Text()
 
-		// skip blank lines
-		if 0 == len(strings.TrimSpace(line)) {
+		txtyp0 := normal
+		tx2, txtyp2 := splitFields(line, &lastCombined2)
+		tx3, txtyp3 := splitFields3(line, &lastCombined3)
+		if txtyp2 == empty {
 			skipped++
 			continue
+		}
+		if txtyp2 == combinedHeader {
+			lastCombined2 = tx2
+		}
+		if txtyp3 == combinedHeader {
+			lastCombined3 = tx3
 		}
 
 		fields := strings.SplitN(line, " - ", 6)
@@ -85,14 +95,24 @@ func parseTransmited(r io.Reader) []Transmitted {
 			fmt.Sscanf(strings.TrimSpace(fields[4]), "%d %s", &tx.Size, &tx.SizeUnit)
 			// skip deduped
 			if tx.Speed == 0 && tx.Size == 0 {
-				skipped++
-				continue
+				txtyp0 = dedup
 			}
 		}
 
 		tx.FName = fields[len(fields)-1]
 		// if Chunked, will replace fname, and set chunk, on error, no action
-		fmt.Sscanf(tx.FName, "Chunk %x of %s", &tx.Chunk, &tx.FName)
+		if strings.HasPrefix(tx.FName, "Chunk") {
+			_, err := fmt.Sscanf(tx.FName, "Chunk %x of", &tx.Chunk)
+			tx.FName = tx.FName[15:len(tx.FName)]
+
+			if txtyp0 != dedup {
+				txtyp0 = chunked
+			}
+			if err != nil {
+				log.Printf("Unable to parse chunked record:\n%s", line)
+				log.Fatal(err)
+			}
+		}
 
 		if strings.HasPrefix(tx.FName, "Multiple small files batched in one request") {
 			lastCombined = tx
@@ -103,9 +123,11 @@ func parseTransmited(r io.Reader) []Transmitted {
 			// now spread the size into tx.chunk parts!
 			lastCombined.Size = lastCombined.Size / lastCombined.Chunk
 			lastCombined.SizeUnit = "bytes*" //estimated
-			skipped++
+			tx = lastCombined
+			txtyp0 = combinedHeader
+
 			// fmt.Printf("------- %d - %#v\n", tx.Size, lastCombined)
-			continue
+			// continue
 		}
 
 		if len(fields) == 3 {
@@ -116,19 +138,23 @@ func parseTransmited(r io.Reader) []Transmitted {
 			tx.SpeedUnit = lastCombined.SpeedUnit
 
 			lastCombined.Chunk-- // combined chunks are numbered -7,-6,..,-1
+			txtyp0 = combinedContinued
 		}
 
-		if len(fields) == 6 && tx.Speed != 0 {
-			// fmt.Printf("%02d | %#v\n", len(fields), tx)
+		if txtyp0 != txtyp2 || tx != tx2 {
+			fmt.Printf("UnMatched-0,2 %d-%d\n%#v\n%#v\n", txtyp0, txtyp2, tx, tx2)
 		}
-		if len(fields) == 3 {
-			// fmt.Printf("%02d | %#v\n", len(fields), tx)
+		if txtyp2 != txtyp3 || tx2 != tx3 {
+			fmt.Printf("UnMatched-2,3 %d-%d\n%#v\n%#v\n", txtyp2, txtyp3, tx2, tx3)
 		}
-		// fmt.Printf("%02d | %#v\n", len(fields), tx)
 
+		if txtyp0 == dedup || txtyp0 == combinedHeader {
+			skipped++
+			continue
+		}
 		list = append(list, tx)
 	}
-	fmt.Fprintf(os.Stderr, "-= Parsed %d lines (%d skipped)\n", len(list), skipped)
+	// fmt.Fprintf(os.Stderr, "-= Parsed %d lines (%d skipped)\n", len(list), skipped)
 
 	if err := scanner.Err(); err != nil {
 		log.Fatal(err)
@@ -136,4 +162,180 @@ func parseTransmited(r io.Reader) []Transmitted {
 	// fmt.Printf("%#v\n", list)
 
 	return list
+}
+
+type txRecordType int
+
+const (
+	empty txRecordType = iota
+	normal
+	dedup
+	combinedHeader
+	combinedContinued
+	chunked
+)
+
+func splitFields(line string, lastCombined *Transmitted) (Transmitted, txRecordType) {
+	tx := Transmitted{}
+	txtyp := normal
+
+	if 0 == len(strings.TrimSpace(line)) {
+		return tx, empty
+	}
+
+	fields := strings.SplitN(line, " - ", 6)
+
+	// should be 3 or six fields, if second field is blank, must be 3.
+	// BUT: Filename may have ' - 's
+	if len(fields[1]) == 65 && len(strings.TrimSpace(fields[1])) == 0 && len(fields) > 3 {
+		fields = strings.SplitN(line, " - ", 3)
+	}
+
+	tx.Stamp = fields[0]
+	if len(fields) == 6 {
+		// ignore errors, default struct values are OK
+		fmt.Sscanf(strings.TrimSpace(fields[3]), "%d %s", &tx.Speed, &tx.SpeedUnit)
+		fmt.Sscanf(strings.TrimSpace(fields[4]), "%d %s", &tx.Size, &tx.SizeUnit)
+		// skip deduped
+		if tx.Speed == 0 && tx.Size == 0 {
+			txtyp = dedup
+		}
+	}
+
+	tx.FName = fields[len(fields)-1]
+	// if Chunked, will replace fname, and set chunk, on error, no action
+	if strings.HasPrefix(tx.FName, "Chunk") {
+		_, err := fmt.Sscanf(tx.FName, "Chunk %x of", &tx.Chunk)
+		tx.FName = tx.FName[15:len(tx.FName)]
+		if txtyp != dedup {
+			txtyp = chunked
+		}
+		if err != nil {
+			log.Printf("Unable to parse chunked record:\n%s", line)
+			log.Fatal(err)
+		}
+	}
+
+	if strings.HasPrefix(tx.FName, "Multiple small files batched in one request") {
+		_, err := fmt.Sscanf(tx.FName, "Multiple small files batched in one request, the %d files are listed below:", &tx.Chunk)
+		if err != nil {
+			log.Fatal(err)
+		}
+		// now spread the size into tx.chunk parts!
+		tx.Size = tx.Size / tx.Chunk
+		tx.SizeUnit = "bytes*" //estimated
+		txtyp = combinedHeader
+	}
+
+	if len(fields) == 3 {
+		tx.Chunk = -lastCombined.Chunk
+		tx.Size = lastCombined.Size
+		tx.SizeUnit = lastCombined.SizeUnit
+		tx.Speed = lastCombined.Speed
+		tx.SpeedUnit = lastCombined.SpeedUnit
+
+		lastCombined.Chunk-- // combined chunks are numbered -7,-6,..,-1
+		txtyp = combinedContinued
+	}
+
+	return tx, txtyp
+}
+
+func splitFields3(line string, lastCombined *Transmitted) (Transmitted, txRecordType) {
+	tx := Transmitted{}
+	txtyp := normal
+
+	/*
+		2018-10-11 10:49:37 -  large  - throttle auto     11 -  2604 kBits/sec -   834682 bytes - Chunk 00545 of /Users/daniel/Library/Containers/com.docker.docker/Data/vms/0/Docker.qcow2
+	*/
+	if 0 == len(strings.TrimSpace(line)) {
+		return tx, empty
+	}
+
+	// + empty txRecordType = iota
+	// normal
+	// + dedup
+	// + combinedHeader
+	// + combinedContinued
+	// chunked
+
+	// n, err := fmt.Sscanf(line, "%19s - %65s - %s", &s1, &s2, &s3)
+	tx.Stamp = line[0:19]
+	if line[65:70] == "dedup" {
+		tx.FName = line[83:len(line)]
+		tx.SizeUnit = "bytes" // just to conform, but 0 is 0!
+		txtyp = dedup
+		//  No other (non-default) fields required
+		if strings.HasPrefix(tx.FName, "Chunk") {
+			_, err := fmt.Sscanf(tx.FName, "Chunk %x of", &tx.Chunk)
+			tx.FName = tx.FName[15:len(tx.FName)]
+			if err != nil {
+				log.Printf("Unable to parse dedup-chunked record:\n%s", line)
+				log.Fatal(err)
+			}
+		}
+		// fmt.Printf("|%s|%s|%s|\n", tx.Stamp, mid, tx.FName)
+	} else {
+		mid := line[22:87]
+		tx.FName = line[90:len(line)]
+
+		// fmt.Printf("|%s|%s|%s|\n", tx.Stamp, mid, tx.FName)
+
+		if len(strings.TrimSpace(mid)) == 0 {
+			// combinedContinued
+			txtyp = combinedContinued
+			//  No other (non-default) fields required
+			tx.Chunk = -lastCombined.Chunk
+			tx.Size = lastCombined.Size
+			tx.SizeUnit = lastCombined.SizeUnit
+			tx.Speed = lastCombined.Speed
+			tx.SpeedUnit = lastCombined.SpeedUnit
+
+			lastCombined.Chunk-- // combined chunks are numbered -7,-6,..,-1
+		} else if strings.HasPrefix(tx.FName, "Multiple small files batched in one request") {
+			// combinedHeader
+			txtyp = combinedHeader
+			_, err := fmt.Sscanf(tx.FName, "Multiple small files batched in one request, the %d files are listed below:", &tx.Chunk)
+			if err != nil {
+				log.Printf("Unable to parse combinedHeader record:\n%s", line)
+				log.Fatal(err)
+			}
+			fields := strings.SplitN(mid, " - ", 4)
+			// ignore errors, default struct values are OK
+			fmt.Sscanf(strings.TrimSpace(fields[2]), "%d %s", &tx.Speed, &tx.SpeedUnit)
+			fmt.Sscanf(strings.TrimSpace(fields[3]), "%d %s", &tx.Size, &tx.SizeUnit)
+			// now spread the size into tx.chunk parts!
+			tx.Size = tx.Size / tx.Chunk
+			tx.SizeUnit = "bytes*" //estimated
+		} else if strings.HasPrefix(tx.FName, "Chunk") {
+			// chunked
+			txtyp = chunked
+			_, err := fmt.Sscanf(tx.FName, "Chunk %x of", &tx.Chunk)
+			tx.FName = tx.FName[15:len(tx.FName)]
+			if err != nil {
+				log.Printf("Unable to parse chunked record:\n%s", line)
+				log.Fatal(err)
+			}
+			fields := strings.SplitN(mid, " - ", 4)
+			// ignore errors, default struct values are OK
+			fmt.Sscanf(strings.TrimSpace(fields[2]), "%d %s", &tx.Speed, &tx.SpeedUnit)
+			fmt.Sscanf(strings.TrimSpace(fields[3]), "%d %s", &tx.Size, &tx.SizeUnit)
+			// fmt.Printf("chunked:%d: %s\n", txtyp, line)
+			// fmt.Printf("|%s|%s|%s|\n", tx.Stamp, mid, tx.FName)
+			// fmt.Printf("chunked:%d: %#v\n", txtyp, tx)
+		} else {
+			// normal
+			txtyp = normal
+			fields := strings.SplitN(mid, " - ", 4)
+			// ignore errors, default struct values are OK
+			fmt.Sscanf(strings.TrimSpace(fields[2]), "%d %s", &tx.Speed, &tx.SpeedUnit)
+			fmt.Sscanf(strings.TrimSpace(fields[3]), "%d %s", &tx.Size, &tx.SizeUnit)
+			// fmt.Printf("normal:%d: %s\n", txtyp, line)
+			// fmt.Printf("|%s|%s|%s|\n", tx.Stamp, mid, tx.FName)
+			// fmt.Printf("normal:%d: %#v\n", txtyp, tx)
+		}
+
+	}
+
+	return tx, txtyp
 }

@@ -7,6 +7,41 @@ import (
 	"testing"
 )
 
+func BenchmarkSplitN6(b *testing.B) {
+	line := "2018-10-02 13:27:18 -  large  - throttle manual   11 -  3112 kBits/sec - 30460266 bytes - /Volumes/Space/archive/media/video/PMB/12-23-2008(1)/20081219122438.mpg"
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		/*fields :=*/ strings.SplitN(line, " - ", 6)
+	}
+}
+func BenchmarkSplitN3(b *testing.B) {
+	line := "2018-10-02 13:27:18 -  large  - throttle manual   11 -  3112 kBits/sec - 30460266 bytes - /Volumes/Space/archive/media/video/PMB/12-23-2008(1)/20081219122438.mpg"
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		/*fields :=*/ strings.SplitN(line, " - ", 3)
+	}
+}
+
+func ss(line string) (string, string, string) {
+	var s1, s2, s3 string
+	s1 = line[0:19]
+	if line[65:70] == "dedup" {
+		s2 = line[22:80]
+		s3 = line[83 : len(line)-1]
+	} else {
+		s2 = line[22:87]
+		s3 = line[90 : len(line)-1]
+	}
+	return s1, s2, s3
+}
+func BenchmarkSplitSlice(b *testing.B) {
+	line := "2018-10-02 13:27:18 -  large  - throttle manual   11 -  3112 kBits/sec - 30460266 bytes - /Volumes/Space/archive/media/video/PMB/12-23-2008(1)/20081219122438.mpg"
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		ss(line)
+	}
+}
+
 func TestParseTransmited_Parts(t *testing.T) {
 	var data = []struct {
 		name string
@@ -57,7 +92,7 @@ func TestParseTransmited_Parts(t *testing.T) {
 	for _, tt := range data {
 		got := parseTransmited(strings.NewReader(tt.in))
 		if !reflect.DeepEqual(tt.out, got) {
-			t.Errorf("Test:%s: expected:\n %s got:\n %s", tt.name, vslice(tt.out), vslice(got))
+			t.Errorf("Test:%s: input:\n%s\nexpected:\n%sgot:\n %s", tt.name, tt.in, vslice(tt.out), vslice(got))
 		}
 	}
 }
@@ -76,7 +111,7 @@ func TestParseTransmited(t *testing.T) {
 		t.Errorf("Expected %d, got %d", len(expected), len(got))
 	}
 	if !reflect.DeepEqual(expected, got) {
-		t.Errorf("Expected %v\n got %v", expected, got)
+		t.Errorf("Test: expected:\n %s got:\n %s", vslice(expected), vslice(got))
 	}
 
 	// fmt.Printf("%#v\n", got)
