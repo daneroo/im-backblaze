@@ -6,58 +6,72 @@ const margin = ({ top: 0, right: 20, bottom: 30, left: 20 })
 // .order(d3.stackOrderNone) // stackOrderNone stackOrderAscending  stackOrderDescending  stackOrderInsideOut
 // .offset(d3.stackOffsetNone) // stackOffsetWiggle stackOffsetNone stackOffsetSilhouette
 
-// mikedata().then(data => {
-//   console.log('const mikedata = ', JSON.stringify(data))
-// })
+const svg = d3.select('body').append('svg')
+  .attr('width', width)
+  .attr('height', height)
 
-const data = mikedata()
-
+// scales - x (no domain)
 const x = d3.scaleTime()
-  .domain(d3.extent(data, d => d.date))
   .range([margin.left, width - margin.right])
 
 const y = d3.scaleLinear()
-  .domain([d3.min(data, d => d.values[0]), d3.max(data, d => d.values[1])])
   .range([height - margin.bottom, margin.top])
 
-const color = d3.scaleOrdinal(d3.schemeCategory10).domain(data.map(d => d.name))
+// scales - color (no domain)
+const color = d3.scaleOrdinal(d3.schemeCategory10)
 // const color = d3.interpolateWarm // interpolateWarm interpolateCool
-
-const area = d3.area()
-// .curve(d3.curveMonotoneX)
-// .curve(d3.curveBasis)
-  .curve(d3.curveCardinal)
-// .curve(d3.curveStep)
-  .x(d => x(d.date))
-  .y0(d => y(d.values[0]))
-  .y1(d => y(d.values[1]))
 
 const xAxis = g => g
   .attr('transform', `translate(0,${height - margin.bottom})`)
   .call(d3.axisBottom(x).ticks(width / 80).tickSizeOuter(0))
   .call(g => g.select('.domain').remove())
 
-const svg = d3.select('body').append('svg')
-  .attr('width', width)
-  .attr('height', height)
-  .append('g')
+const area = d3.area()
+  .curve(d3.curveCardinal) // curveStep curveCardinal curveBasis
+  .x(d => x(d.date))
+  .y0(d => y(d.values[0]))
+  .y1(d => y(d.values[1]))
 
-svg.append('g')
-  .selectAll('path')
-  .data([...multimap(data.map(d => [d.name, d]))])
-  .enter().append('path')
-  .attr('fill', ([name]) => color(name))
-  .attr('d', ([, values]) => area(values))
-  .append('title')
-  .text(([name]) => name)
+// Below depend on data...
+function render (data) {
+  // clear the axix and area
+  svg.selectAll('g').remove()
 
-svg.append('g')
-  .call(xAxis)
+  x.domain(d3.extent(data, d => d.date))
+  y.domain([d3.min(data, d => d.values[0]), d3.max(data, d => d.values[1])])
+  color.domain(data.map(d => d.name))
 
-function mikedata () {
-  // let data = (await d3.json('https://raw.githubusercontent.com/vega/vega-lite/b2338345973f4717979ad9140c06ee0970c20116/data/unemployment-across-industries.json')).map(({ series, count, date }) => ({ name: series, value: count, date: new Date(date) }))
+  svg.append('g')
+    .selectAll('path')
+    .data([...multimap(data.map(d => [d.name, d]))])
+    .enter().append('path')
+    .attr('fill', ([name]) => color(name))
+    .attr('d', ([, values]) => area(values))
+    .append('title')
+    .text(([name]) => name)
 
-  let data = rawdata.map(({ series, count, date }) => ({ name: series, value: count, date: new Date(date) }))
+  // called once or every render ?
+  svg.append('g')
+    .call(xAxis)
+}
+
+fetchTransformAndDraw()
+setInterval(async () => {
+  console.log('Render!')
+  fetchTransformAndDraw()
+}, 5000)
+// const data = mikedata() // sync version
+
+async function fetchTransformAndDraw () {
+  // const data = (await d3.json('https://raw.githubusercontent.com/vega/vega-lite/b2338345973f4717979ad9140c06ee0970c20116/data/unemployment-across-industries.json')).map(({ series, count, date }) => ({ name: series, value: count, date: new Date(date) }))
+  const data = (await d3.json('data/unemployment-across-industries.json'))
+    .map(({ series, count, date }) => ({ name: series, value: count, date: new Date(date) }))
+
+  render(transform(data))
+}
+
+function transform (data) {
+  // let data = rawdata.map(({ series, count, date }) => ({ name: series, value: count, date: new Date(date) }))
 
   // Compute the top nine industries, plus an “Other” category.
   const top = [...multisum(data.map(d => [d.name, d.value]))]
@@ -85,14 +99,17 @@ function mikedata () {
   const stack = d3.stack()
     .keys(top)
     .value((d, key) => d.get(key).value)
-    .offset(d3.stackOffsetSilhouette)
-    (Array.from(
-      multimap(
-        data.map(d => [+d.date, d]),
-        (p, v) => p.set(v.name, v),
-        () => new Map()
-      ).values()
-    ))
+    // TODO order/offset from previous example
+    // recommended insideOut, and wiggle
+    .order(d3.stackOrderInsideOut) // stackOrderNone stackOrderAscending  stackOrderDescending  stackOrderInsideOut
+    .offset(d3.stackOffsetWiggle)( // stackOffsetWiggle stackOffsetNone stackOffsetSilhouette
+      Array.from(
+        multimap(
+          data.map(d => [+d.date, d]),
+          (p, v) => p.set(v.name, v),
+          () => new Map()
+        ).values()
+      ))
 
   // Copy the offsets back into the data.
   for (const layer of stack) {

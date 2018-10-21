@@ -78,7 +78,7 @@ select
 function onchange () {
   const selectValue = d3.select('select').property('value')
   console.log('selected ', selectValue)
-  load(selectValue + '.json')
+  load('data/' + selectValue + '.json')
   // d3.select('body')
   //   .append('p')
   //   .text(selectValue + ' is the last selected option.')

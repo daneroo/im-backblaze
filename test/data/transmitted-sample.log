@@ -1,0 +1,14 @@
+
+2018-10-17 18:39:45 -  small  - throttle auto     11 -     8 kBits/sec - 1 bytes - /Volumes/Space/fake_filename_to_refresh_volume_dashboard.txt
+2018-10-02 02:39:30 -  large  - throttle manual   11 -  3450 kBits/sec -  7827914 bytes - /Volumes/Space/archive/media/mp3/creative/Binye (Respect)/08-Seourouba.mp3
+2018-10-02 02:39:36 -  large  - throttle manual   11 -  4972 kBits/sec -  7832042 bytes - /Volumes/Space/archive/media/mp3/peered/Brazil-Rodrigo/Cantoria 1 - Elomar, Geraldo Azevedo, Vital Faria e Xangai - 1984/09 Cantiga do Estradar.mp3
+2018-10-01 03:35:31 -  small  - throttle x           -           dedup - 0 bytes - /Users/daniel/.bash_sessions/34D616D0-93F6-4AF2-AD60-9A5D4B83C76A.historynew
+2018-10-01 03:35:48 -  small  - throttle x           -           dedup - 0 bytes - /Volumes/Space/archive/media/photo/dadSulbalcon/200308/Catherine35Ans2003/130-3052_IMG.JPG
+2018-10-02 13:32:57 -  small  - throttle x           -           dedup - 0 bytes - Chunk 00000 of /Users/daniel/GoogleDrive/Jobs/Sologlobe/Sologlobe  Mar 08,2013  03 40 PM.QBB
+2018-10-02 13:32:57 -  small  - throttle x           -           dedup - 0 bytes - Chunk 00001 of /Users/daniel/GoogleDrive/Jobs/Sologlobe/Sologlobe  Mar 08,2013  03 40 PM.QBB
+2018-10-01 00:00:18 -  large  - throttle manual   11 -  3429 kBits/sec - 11314637 bytes - Multiple small files batched in one request, the 7 files are listed below:
+2018-10-01 00:00:22 -  large  - throttle manual   11 -  2632 kBits/sec - 11515149 bytes - Multiple small files batched in one request, the 7 files are listed below:
+2018-10-01 00:00:18 -                                                                   - /Volumes/Space/archive/media/photo/dad/2003/2003_08_23/129-2919_IMG.JPG
+2018-10-01 00:00:18 -                                                                   - /Volumes/Space/archive/media/photo/dad/2003/2003_07_06/125-2583_IMG.JPG
+2018-10-02 13:30:58 -  small  - throttle manual   11 -    28 kBits/sec -     7290 bytes - Chunk 00003 of /Volumes/Space/archive/media/ebooks/ebook-1100/Over 1100 General Computer Ebooks/The UNIX CD Bookshelf, v3.0 (2003).zip
+2018-10-02 13:31:15 -  large  - throttle manual   11 -  4143 kBits/sec - 10486490 bytes - Chunk 00000 of /Volumes/Space/archive/media/ebooks/ebook-1100/Over 1100 General Computer Ebooks/The UNIX CD Bookshelf, v3.0 (2003).zip
