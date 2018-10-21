@@ -16,6 +16,9 @@ In the course of it's operation Backblaze leaves these log files, and we wish to
 Lists are in: `/Library/Backblaze.bzpkg/bzdata/bzfilelists`
 
 ## References
+- [Streamgraph w/time axis](https://beta.observablehq.com/@mbostock/d3-streamgraph)
+- [Zoomable Sunburst Mike Bostock](https://beta.observablehq.com/@mbostock/d3-zoomable-sunburst)
+- [Harry Steven's D3 Streamgraph with Tooltip and Legend](https://bl.ocks.org/HarryStevens/c893c7b441298b36f4568bc09df71a1e)
 - [Lees Byron's _Stacked Graphs – Geometry & Aesthetics_](https://leebyron.com/streamgraph/)
 - [Interactive streamgraph](http://bl.ocks.org/WillTurman/4631136)
 - [StreamGraph Demos from Flowning Data](https://flowingdata.com/tag/streamgraph/)
