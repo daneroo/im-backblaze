@@ -1,4 +1,4 @@
-/* global d3,rawdata */
+/* global d3 */
 
 const width = 960
 const height = 500
@@ -121,7 +121,7 @@ function transform (data) {
   return data
 }
 
-function multimap (entries, reducer = (p, v) => (p.push(v), p), initializer = () => []) {
+function multimap (entries, reducer = (p, v) => ((p.push(v), p)), initializer = () => []) {
   const map = new Map()
   for (const [key, value] of entries) {
     map.set(key, reducer(map.has(key) ? map.get(key) : initializer(key), value))
