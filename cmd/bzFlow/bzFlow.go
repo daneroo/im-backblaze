@@ -21,6 +21,11 @@ import (
 const baseDir = "/Library/Backblaze.bzpkg/bzdata"
 
 // bzlogs/bzreports_lastfilestransmitted/13.log
+const doSummary = false
+
+const minStamp = "2018-10-08"
+
+// const minStamp = "2018-09-01"
 
 func main() {
 	files, err := filepath.Glob(baseDir + "/bzlogs/bzreports_lastfilestransmitted/*.log")
@@ -28,28 +33,47 @@ func main() {
 		log.Fatal(err)
 	}
 
+	allxfrs := make([]backblaze.Transmitted, 0)
 	for _, file := range files {
 		xfrs := parse(file)
+
+		if len(xfrs) > 0 && xfrs[0].Stamp[0:10] < minStamp {
+			continue
+		}
 
 		// writeJSON(xfrs, false) // one json array '.json'
 		// writeJSON(xfrs, true)  //perLine '.jsonl'
 
 		// writeTree(tree)
 
-		summary := summarize(xfrs)
-		// include files themselves
-		// summary = append(summary, xfrs...)
+		if doSummary {
+			summary := summarize(xfrs)
+			// include files themselves
+			// summary = append(summary, xfrs...)
+			sortBySizeThenName(summary)
 
-		sort.Slice(summary, func(i, j int) bool {
-			if summary[i].Size == summary[j].Size {
-				return summary[i].FName < summary[j].FName // FName lexicographical ascending
-			}
-			return summary[i].Size > summary[j].Size // Size descending
-		})
-		writeJSON(summary, true) //perLine '.jsonl'
+			writeJSON(summary, "", true) //perLine '.jsonl'
+
+		}
+		allxfrs = append(allxfrs, xfrs...)
 	}
+	fmt.Fprintf(os.Stderr, "-= Accumulated %d entries\n", len(allxfrs))
+	writeJSON(allxfrs, "allxfrs", false) //perLine '.jsonl'
 
 }
+
+// Sorts the passed in slice, in place
+//  Sort is guaranteed Stable
+func sortBySizeThenName(list []backblaze.Transmitted) {
+	sort.Slice(list, func(i, j int) bool {
+		if list[i].Size == list[j].Size {
+			return list[i].FName < list[j].FName // FName lexicographical ascending
+		}
+		return list[i].Size > list[j].Size // Size descending
+	})
+
+}
+
 func parse(file string) []backblaze.Transmitted {
 	infile, err := os.Open(file)
 	if err != nil {
@@ -60,6 +84,7 @@ func parse(file string) []backblaze.Transmitted {
 	return backblaze.ParseTransmited(infile)
 
 }
+
 func parent(path string) string {
 	if strings.HasSuffix(path, "/") {
 		path = path[0 : len(path)-1]
@@ -68,8 +93,6 @@ func parent(path string) string {
 	return dir
 }
 
-func makeTree() {
-}
 func summarize(xfrs []backblaze.Transmitted) []backblaze.Transmitted {
 	fmt.Fprintf(os.Stderr, "-= Writing %d entries\n", len(xfrs))
 	tree := make(map[string]*backblaze.Transmitted)
@@ -122,7 +145,7 @@ func writeTree(tree map[string]*backblaze.Transmitted) {
 
 }
 
-func writeJSON(xfrs []backblaze.Transmitted, perLine bool) {
+func writeJSON(xfrs []backblaze.Transmitted, filename string, perLine bool) {
 	if len(xfrs) == 0 {
 		fmt.Fprintf(os.Stderr, "-= Writing %d entries - skipped\n", len(xfrs))
 		return
@@ -132,6 +155,10 @@ func writeJSON(xfrs []backblaze.Transmitted, perLine bool) {
 		ext = "jsonl"
 	}
 	outfilename := fmt.Sprintf("raw-tx-%s.%s", xfrs[0].Stamp[0:10], ext)
+	if 0 != len(filename) {
+		outfilename = fmt.Sprintf("%s.%s", filename, ext)
+
+	}
 	fmt.Fprintf(os.Stderr, "-= Writing %s (%d entries)\n", outfilename, len(xfrs))
 
 	outfile, err := os.Create(outfilename)

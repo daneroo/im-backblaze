@@ -3,17 +3,17 @@
 const width = 960
 const height = 500
 const margin = ({ top: 0, right: 20, bottom: 30, left: 20 })
-// .order(d3.stackOrderNone) // stackOrderNone stackOrderAscending  stackOrderDescending  stackOrderInsideOut
-// .offset(d3.stackOffsetNone) // stackOffsetWiggle stackOffsetNone stackOffsetSilhouette
 
 const svg = d3.select('body').append('svg')
   .attr('width', width)
   .attr('height', height)
+  .style('font', '10px sans-serif')
 
 // scales - x (no domain)
 const x = d3.scaleTime()
   .range([margin.left, width - margin.right])
 
+// scales - y (no domain)
 const y = d3.scaleLinear()
   .range([height - margin.bottom, margin.top])
 
@@ -27,14 +27,14 @@ const xAxis = g => g
   .call(g => g.select('.domain').remove())
 
 const area = d3.area()
-  .curve(d3.curveCardinal) // curveStep curveCardinal curveBasis
+  .curve(d3.curveBasis) // curveStep curveCardinal curveBasis
   .x(d => x(d.date))
   .y0(d => y(d.values[0]))
   .y1(d => y(d.values[1]))
 
 // Below depend on data...
 function render (data) {
-  // clear the axix and area
+  // clear the x-axis and area
   svg.selectAll('g').remove()
 
   x.domain(d3.extent(data, d => d.date))
@@ -53,30 +53,60 @@ function render (data) {
   // called once or every render ?
   svg.append('g')
     .call(xAxis)
+
+  legend()
+}
+
+function legend () {
+  const g = svg.append('g')
+    .selectAll('g')
+    .data(color.domain().slice()/* .reverse() */)
+    .enter().append('g')
+    .attr('transform', (d, i) => `translate(${margin.left},${i * 20})`)
+
+  g.append('rect')
+    .attr('width', 19)
+    .attr('height', 19)
+    .attr('fill', color)
+
+  g.append('text')
+    .attr('x', 24)
+    .attr('y', 9.5)
+    .attr('dy', '0.35em')
+    .text(d => d)
 }
 
 fetchTransformAndDraw()
-setInterval(async () => {
+const intvl = setInterval(async () => {
   console.log('Render!')
   fetchTransformAndDraw()
+  clearInterval(intvl)
 }, 5000)
-// const data = mikedata() // sync version
 
 async function fetchTransformAndDraw () {
-  // const data = (await d3.json('https://raw.githubusercontent.com/vega/vega-lite/b2338345973f4717979ad9140c06ee0970c20116/data/unemployment-across-industries.json')).map(({ series, count, date }) => ({ name: series, value: count, date: new Date(date) }))
-  const data = (await d3.json('data/unemployment-across-industries.json'))
-    .map(({ series, count, date }) => ({ name: series, value: count, date: new Date(date) }))
+  // const data = await unemploymentData()
+  const data = await bzData()
+
+  // In the file, this is the structure:
+  // const infile = [
+  //   { 'series': 'Government', 'year': 2000, 'month': 1, 'count': 430, 'rate': 2.1, 'date': '2000-01-01T08:00:00.000Z' },
+  //   { 'series': 'Government', 'year': 2000, 'month': 2, 'count': 409, 'rate': 2, 'date': '2000-02-01T08:00:00.000Z' }
+  // ]
+  // after load, this is the structure:
+  // const after = [
+  //   { 'name': 'Government', 'value': 430, 'date': '2000-01-01T08:00:00.000Z' },
+  //   { 'name': 'Government', 'value': 409, 'date': '2000-02-01T08:00:00.000Z' }
+  // ]
 
   render(transform(data))
 }
 
 function transform (data) {
-  // let data = rawdata.map(({ series, count, date }) => ({ name: series, value: count, date: new Date(date) }))
-
-  // Compute the top nine industries, plus an “Other” category.
+  const N = 9
+  // Compute the top N industries, plus an “Other” category.
   const top = [...multisum(data.map(d => [d.name, d.value]))]
     .sort((a, b) => b[1] - a[1])
-    .slice(0, 9)
+    .slice(0, N)
     .map(d => d[0])
     .concat('Other')
 
@@ -101,8 +131,8 @@ function transform (data) {
     .value((d, key) => d.get(key).value)
     // TODO order/offset from previous example
     // recommended insideOut, and wiggle
-    .order(d3.stackOrderInsideOut) // stackOrderNone stackOrderAscending  stackOrderDescending  stackOrderInsideOut
-    .offset(d3.stackOffsetWiggle)( // stackOffsetWiggle stackOffsetNone stackOffsetSilhouette
+    .order(d3.stackOrderAscending) // stackOrderNone stackOrderAscending  stackOrderDescending  stackOrderInsideOut
+    .offset(d3.stackOffsetSilhouette)( // stackOffsetWiggle stackOffsetNone stackOffsetSilhouette
       Array.from(
         multimap(
           data.map(d => [+d.date, d]),
@@ -110,6 +140,8 @@ function transform (data) {
           () => new Map()
         ).values()
       ))
+
+  console.log('stack', stack)
 
   // Copy the offsets back into the data.
   for (const layer of stack) {
@@ -133,51 +165,77 @@ function multisum (entries) {
   return multimap(entries, (p, v) => p + v, () => 0)
 }
 
-// .attr('transform', 'translate(' + width / 2 + ',' + (height / 2) + ')')
-// const svg = d3.select(DOM.svg(width, height))
+async function unemploymentData () {
+  // const dataURL = 'https://raw.githubusercontent.com/vega/vega-lite/b2338345973f4717979ad9140c06ee0970c20116/data/unemployment-across-industries.json'
+  const dataURL = 'data/unemployment-across-industries.json'
+  let data = (await d3.json(dataURL))
+    .map(({ series, count, date }) => ({ name: series, value: count, date: new Date(date) }))
 
-function load () {
-  // const gen = Array.from({ length: n }, () => bumps(m, k))
-  const data = getdata()
-  console.log('data', JSON.stringify(data))
-
-  const xdomain = d3.extent(data, function (d) { return d.stamp })
-  console.log('xdomain', xdomain)
-  x.domain(xdomain)
-
-  // console.log('const data = ', JSON.stringify(data))
-  const nest = d3.nest().key(d => d.key).sortKeys(d3.ascending)
-
-  const nesteddata = nest.entries(data)
-  console.log('nested', nesteddata)
-  console.log('nested', JSON.stringify(nesteddata))
-  const layers = stack(nesteddata)
-  console.log('layers', layers)
-
-  y.domain([
-    d3.min(layers, l => d3.min(l, d => d[0])),
-    d3.max(layers, l => d3.max(l, d => d[1]))
-  ])
-  return layers
+  return data
 }
 
-function getdata () {
-// return [
-//   [0.0002, 0.0027, 0.0253, 0.1528, 0.5999, 1.5311, 2.5392, 2.7374, 2.045, 2.2992, 1.8055, 0.2139, 0.0079, 0.0005, 0, 0, 0, 0, 0, 0],
-//   [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.0005, 0.0268, 0.3715, 3.7822, 0.9674, 0.3052, 0.4762, 0.8833, 0.8757, 0.4566],
-//   [0.046, 0.4105, 2.3163, 4.5502, 2.4683, 1.3599, 2.1985, 2.5416, 1.8129, 0.6976, 0.1447, 0.0162, 0.001, 0, 0, 0, 0, 0, 0.0002, 0.0172]
-// ]
-  if (0) {
-    return [
-      d3.range(18).map(x => Math.random()),
-      d3.range(18).map(x => Math.random()),
-      d3.range(18).map(x => Math.random()),
-      [0, 1, 2, 1, 0, -1, -2, -1, 0, 1, 2, 1, 0, -1, -2, -1, 0, 1].map(x => (x + 2) / 4.1 + 0.1),
-      [0, 1, 2, 1, 0, -1, -2, -1, 0, 1, 2, 1, 0, -1, -2, -1, 0, 1].map(x => (x + 2) / 4.1 + 0.1),
-      [-1, 0, 1, 2, 1, 0, -1, -2, -1, 0, 1, 2, 1, 0, -1, -2, -1, 0].map(x => (-x + 2) / 4.1 + 0.1),
-      [-2, -1, 0, 1, 2, 1, 0, -1, -2, -1, 0, 1, 2, 1, 0, -1, -2, -1].map(x => -x - 1)
-      // [0.046, 0.4105, 2.3163, 4.5502, 2.4683, 1.3599, 2.1985, 2.5416, 1.8129, 0.6976, 0.1447, 0.0162, 0.001, 0, 0, 0, 0, 0, 0.0002, 0.0172]
-    ]
+function parents (path, depth) {
+  const parts = path.split('/')
+  return parts.slice(0, depth + 1).join('/')
+}
+
+async function bzData () {
+  const dataURL = 'data/allxfrs.json'
+  let data = (await d3.json(dataURL))
+    .map(({ fname, size, stamp }) => ({ name: fname, value: size, date: new Date(stamp) }))
+
+  console.log(`Fetched ${data.length} entries`)
+  const summary = {
+    Other: { name: 'Other', value: 0, count: 0, byDate: {} }
+  }
+  const alldates = {}
+  data.forEach((d, i) => {
+    // console.log('i', i, d)
+    const key = parents(d.name, 3)
+    // 2018-10-21 12:37:01
+    const dt = d.date.toISOString().substring(0, 10)
+    // const dt = d.date.toISOString().substring(0, 13) + ':00:00'
+
+    if (!(key in summary)) {
+      summary[key] = { name: key, value: 0, count: 0, byDate: {} }
+    }
+    if (!(dt in summary[key].byDate)) {
+      summary[key].byDate[dt] = { name: key, date: dt, value: 0 }
+    }
+    summary[key].count += 1
+    summary[key].value += d.value
+    summary[key].byDate[dt].value += d.value
+
+    if (!(dt in alldates)) {
+      alldates[dt] = { date: dt, count: 0 }
+    }
+    alldates[dt].count += 1
+  })
+  // console.log('summary', JSON.stringify(summary, null, 2))
+  // console.log('alldates', JSON.stringify(alldates, null, 2))
+  const ds = Object.keys(alldates).sort()
+  // console.log('ds', JSON.stringify(ds, null, 2))
+
+  const rdata = []
+  for (let key in summary) {
+    // console.log(`--${key}:${Object.keys(summary[key].byDate).sort()}`)
+    for (let dt of ds) {
+      if (!(dt in summary[key].byDate)) {
+        // console.log(`Inserting date ${dt} in ${key}`)
+        summary[key].byDate[dt] = { name: key, date: dt, value: 0 }
+        rdata.push({ name: key, date: dt, value: 0 })
+      } else {
+        // console.log(`Found date ${dt} in ${key}: ${JSON.stringify(summary[key].byDate[dt])}`)
+        rdata.push(summary[key].byDate[dt])
+      }
+    }
+  }
+  // rdata.forEach((d, i, rdata) => {
+  //   console.log(`${i}/${rdata.length}: ${JSON.stringify(d)}`)
+  // })
+  if (rdata.length > 0) {
+    return rdata
+      .map(d => ({ ...d, date: new Date(d.date) }))
   }
 
   return [
@@ -258,17 +316,20 @@ function getdata () {
     { 'type': '', 'stamp': '2018-10-07', 'size': 1701242606, 'chunk': 0, 'fname': '/Users/daniel/Library/Containers/com.docker.docker/Data/' },
     { 'type': '', 'stamp': '2018-10-08', 'size': 1, 'chunk': 0, 'fname': '/Users/daniel/Library/Containers/com.docker.docker/Data/' },
     { 'type': '', 'stamp': '2018-10-09', 'size': 18611432, 'chunk': 0, 'fname': '/Users/daniel/Library/Containers/com.docker.docker/Data/' },
-    { 'type': '', 'stamp': '2018-10-04', 'size': 1, 'chunk': 0, 'fname': '/Users/daniel/Library/Containers/com.docker.docker/Data/' },
-    { 'type': '', 'stamp': '2018-10-11', 'size': 19325506, 'chunk': 0, 'fname': '/Users/daniel/Library/Containers/com.docker.docker/Data/' },
     { 'type': '', 'stamp': '2018-10-10', 'size': 1, 'chunk': 0, 'fname': '/Users/daniel/Library/Containers/com.docker.docker/Data/' },
-    { 'type': '', 'stamp': '2018-10-13', 'size': 37330926, 'chunk': 0, 'fname': '/Users/daniel/Library/Containers/com.docker.docker/Data/' },
+    { 'type': '', 'stamp': '2018-10-11', 'size': 19325506, 'chunk': 0, 'fname': '/Users/daniel/Library/Containers/com.docker.docker/Data/' },
     { 'type': '', 'stamp': '2018-10-12', 'size': 1, 'chunk': 0, 'fname': '/Users/daniel/Library/Containers/com.docker.docker/Data/' },
+    { 'type': '', 'stamp': '2018-10-13', 'size': 37330926, 'chunk': 0, 'fname': '/Users/daniel/Library/Containers/com.docker.docker/Data/' },
+    { 'type': '', 'stamp': '2018-10-14', 'size': 1, 'chunk': 0, 'fname': '/Users/daniel/Library/Containers/com.docker.docker/Data/' },
     { 'type': '', 'stamp': '2018-10-15', 'size': 106236792, 'chunk': 0, 'fname': '/Users/daniel/Library/Containers/com.docker.docker/Data/' },
     { 'type': '', 'stamp': '2018-10-16', 'size': 1, 'chunk': 0, 'fname': '/Users/daniel/Library/Containers/com.docker.docker/Data/' },
     { 'type': '', 'stamp': '2018-10-17', 'size': 82968844, 'chunk': 0, 'fname': '/Users/daniel/Library/Containers/com.docker.docker/Data/' },
     { 'type': '', 'stamp': '2018-10-18', 'size': 40548, 'chunk': 0, 'fname': '/Users/daniel/Library/Containers/com.docker.docker/Data/' },
     { 'type': '', 'stamp': '2018-10-19', 'size': 96675164, 'chunk': 0, 'fname': '/Users/daniel/Library/Containers/com.docker.docker/Data/' },
-    { 'type': '', 'stamp': '2018-10-20', 'size': 1, 'chunk': 0, 'fname': '/Users/daniel/Library/Containers/com.docker.docker/Data/' }
+    { 'type': '', 'stamp': '2018-10-20', 'size': 42, 'chunk': 0, 'fname': '/Users/daniel/Library/Containers/com.docker.docker/Data/' }
     // ]
-  ].map(d => ({ key: d.fname, value: d.size, date: new Date(d.stamp) }))
+  ]
+    // .filter(d => d.stamp > '2018-10-07')
+    .map(d => ({ name: d.fname, value: d.size, date: new Date(d.stamp) }))
+    // .map(d => ({ ...d, value: Math.log(d.value) }))
 }
