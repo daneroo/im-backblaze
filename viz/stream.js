@@ -32,6 +32,15 @@ const area = d3.area()
   .y0(d => y(d.values[0]))
   .y1(d => y(d.values[1]))
 
+const tooltip = d3.select('body')
+  .append('div')
+  .attr('class', 'tip')
+  .style('position', 'absolute')
+  .style('z-index', '20')
+  .style('visibility', 'hidden')
+  .style('font', '12px sans-serif')
+  .style('top', (margin.top + 40) + 'px')
+
 // Below depend on data...
 function render (data) {
   // clear the x-axis and area
@@ -41,12 +50,28 @@ function render (data) {
   y.domain([d3.min(data, d => d.values[0]), d3.max(data, d => d.values[1])])
   color.domain(data.map(d => d.name))
 
+  const transformedData = [...multimap(data.map(d => [d.name, d]))]
+  const sumByDate = {}
+  transformedData.forEach(d => {
+    console.log(d[1])
+    d[1].sumByLayer = d[1].reduce((sum, v) => sum + v.value, 0)
+    d[1].sumByDate = sumByDate
+    d[1].forEach(v => {
+      const date = v.date.toISOString().substring(0, 10)
+      if (!(date in sumByDate)) {
+        sumByDate[date] = 0
+      }
+      sumByDate[date] += v.value
+    })
+  })
+  console.log({ transformedData })
   svg.append('g')
     .selectAll('path')
-    .data([...multimap(data.map(d => [d.name, d]))])
+    .data(transformedData)
     .enter().append('path')
+    .attr('class', 'layer') // for mouse events
     .attr('fill', ([name]) => color(name))
-    .attr('d', ([, values]) => area(values))
+    .attr('d', ([, values]) => area(values)) // ?? what is [,values]
     .append('title')
     .text(([name]) => name)
 
@@ -54,15 +79,96 @@ function render (data) {
   svg.append('g')
     .call(xAxis)
 
-  legend()
+  legend(data)
+  hover(data)
+}
+
+// sets up tooltip and such
+function hover () {
+  svg.selectAll('.layer')
+    .attr('opacity', 1)
+    .on('mouseover', function (d, i) {
+      svg.selectAll('.layer').transition()
+        .duration(100)
+        .attr('opacity', function (d, j) {
+          return j !== i ? 0.6 : 1
+        })
+    })
+    .on('mousemove', function (d, i) {
+      function tipX (x) { // 20-940
+        // figure out x position of mouse for tooltip
+        const winWidth = width - margin.left
+        const tipWidth = 200
+        return (x > winWidth - tipWidth - 30)
+          ? x - 45 - tipWidth
+          : x + 10
+      }
+      function size (b) {
+        if (b <= 0) { return b + 'B' }
+        const log2iDiv10 = Math.floor(Math.log2(b) / 10)
+        const suffixes = ['', 'Ki', 'Mi', 'Gi', 'Ti', 'Pi', 'Ei', 'Zi', 'Yi']
+        const suffix = suffixes[log2iDiv10]
+        const size = (b * Math.pow(2, -log2iDiv10 * 10)).toFixed(2)
+        return `${size} ${suffix}B`
+      }
+      function closest (date) {
+        const values = d[1]
+        let minDx = 9e9
+        let minValue = null
+        for (let v of values) {
+          const dx = Math.abs(+date - v.date)
+          if (dx < minDx) {
+            minDx = dx; minValue = v
+          }
+        }
+        return minValue
+      }
+      const clr = d3.select(this).style('fill') // need to know the color in order to generate the swatch
+
+      const mousex = d3.mouse(this)[0] // 'this' is container (svg? g?)
+      const date = x.invert(mousex)
+      const value = closest(date)
+      // const sumStream = d[1].reduce((sum, v) => sum + v.value, 0)
+      const sumStream = d[1].sumByLayer // clculated on transformedData above
+      // const sumDay = 0
+      const name = d[0]
+
+      tooltip
+        .style('left', tipX(mousex) + 'px')
+        .style('visibility', 'visible')
+        .html(`<div>
+          <div><span style="font-size:150%; color:${clr}">■</span><tt>${name}</tt></div>
+          <div>
+            ${value.date.toISOString().substring(0, 10)}
+            <b>${size(value.value)}</b>
+          </div>
+          <div>Total for Layer ↔: <b>${size(d[1].sumByLayer)}</b></div>
+          <div>Total for Day ↕: <b>${size(d[1].sumByDate[value.date.toISOString().substring(0, 10)])}</b></div>
+        </div>`)
+        // <pre>${JSON.stringify(value, null, 2)}</pre>
+        // <div>all dirs   ↕: <b>${size(sumDay)}</b></div>
+    })
+    .on('mouseout', function (d, i) {
+      svg.selectAll('.layer').transition()
+        .duration(100)
+        .attr('opacity', '1')
+      tooltip.style('visibility', 'hidden')
+    })
 }
 
 function legend () {
-  const g = svg.append('g')
+  const r = 6 // radius
+
+  d3.select('body').append('svg')
+
+  const bg = svg.append('g')
+
+  const g = bg.append('g')
     .selectAll('g')
     .data(color.domain().slice()/* .reverse() */)
     .enter().append('g')
-    .attr('transform', (d, i) => `translate(${margin.left},${i * 20})`)
+    .attr('transform', (d, i) => `translate(${margin.left + r},${margin.top + i * 20 + r})`)
+    .style('fill', '#333')
 
   g.append('rect')
     .attr('width', 19)
@@ -74,6 +180,23 @@ function legend () {
     .attr('y', 9.5)
     .attr('dy', '0.35em')
     .text(d => d)
+
+  // find the bounding box of the text we drew
+  // e.g. {x: 20, y: 0, width: 169.625, height: 199}
+  const bb = bg.node().getBBox()
+  // Insert the background rect before the labels above
+
+  bg.insert('rect', 'g')
+    .attr('x', bb.x - r)
+    .attr('y', bb.y - r)
+    .attr('width', bb.width + 2 * r)
+    .attr('height', bb.height + 2 * r)
+    .attr('rx', r)
+    .attr('ry', r)
+    .style('fill', '#ccc')
+    .style('fill-opacity', '.3')
+    .style('stroke', '#ccc')
+    .style('stroke-width', '1px')
 }
 
 fetchTransformAndDraw()
@@ -141,7 +264,7 @@ function transform (data) {
         ).values()
       ))
 
-  console.log('stack', stack)
+  console.log({ stack })
 
   // Copy the offsets back into the data.
   for (const layer of stack) {
