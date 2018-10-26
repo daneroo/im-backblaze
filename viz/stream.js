@@ -4,6 +4,11 @@ const width = 960
 const height = 500
 const margin = ({ top: 0, right: 20, bottom: 30, left: 20 })
 
+//  dataURL is a global from the dropdown
+// let dataURL = 'data/allxfrs.json'
+let dataURL = 'data/diracFlow.json'
+// let dataURL = 'data/fermatFlow.json'
+
 const svg = d3.select('body').append('svg')
   .attr('width', width)
   .attr('height', height)
@@ -79,10 +84,37 @@ function render (data) {
   svg.append('g')
     .call(xAxis)
 
-  legend(data)
-  hover(data)
+  dropdown()
+  legend()
+  hover()
 }
 
+function dropdown () {
+  d3.select('body').selectAll('select.select').remove()
+  const select = d3.select('body')
+    .append('select')
+    .attr('class', 'select')
+    .on('change', onchange)
+
+  select
+    .selectAll('option')
+    .data(['dirac', 'fermat']).enter()
+    .append('option')
+    .attr('selected', d => {
+      console.log(dataURL, d, (dataURL === `data/${d}Flow.json`))
+      return (dataURL === `data/${d}Flow.json`) ? 'selected' : null
+    })
+    .text(d => d)
+
+  function onchange () {
+    const selectValue = d3.select('select').property('value')
+    console.log('selected ', selectValue)
+    dataURL = 'data/' + selectValue + 'Flow.json'
+    fetchTransformAndDraw()
+  };
+
+  // onchange() // load('flare.json')
+}
 // sets up tooltip and such
 function hover () {
   svg.selectAll('.layer')
@@ -128,9 +160,6 @@ function hover () {
       const mousex = d3.mouse(this)[0] // 'this' is container (svg? g?)
       const date = x.invert(mousex)
       const value = closest(date)
-      // const sumStream = d[1].reduce((sum, v) => sum + v.value, 0)
-      const sumStream = d[1].sumByLayer // clculated on transformedData above
-      // const sumDay = 0
       const name = d[0]
 
       tooltip
@@ -200,11 +229,11 @@ function legend () {
 }
 
 fetchTransformAndDraw()
-const intvl = setInterval(async () => {
-  console.log('Render!')
-  fetchTransformAndDraw()
-  clearInterval(intvl)
-}, 5000)
+// const intvl = setInterval(async () => {
+//   console.log('Render!')
+//   fetchTransformAndDraw()
+//   clearInterval(intvl)
+// }, 5000)
 
 async function fetchTransformAndDraw () {
   // const data = await unemploymentData()
@@ -303,7 +332,6 @@ function parents (path, depth) {
 }
 
 async function bzData () {
-  const dataURL = 'data/allxfrs.json'
   let data = (await d3.json(dataURL))
     .map(({ fname, size, stamp }) => ({ name: fname, value: size, date: new Date(stamp) }))
 
