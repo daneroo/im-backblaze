@@ -16,9 +16,10 @@ import (
 	"github.com/daneroo/backblaze"
 )
 
+const baseDir = "/Library/Backblaze.bzpkg/bzdata"
+
 // const baseDir = "./data/dirac/bzdata"
 // const baseDir = "./data/fermat/bzdata"
-const baseDir = "/Library/Backblaze.bzpkg/bzdata"
 
 // bzlogs/bzreports_lastfilestransmitted/13.log
 const doSummary = false
