@@ -1,0 +1,20 @@
+{
+  "name": "bzflow",
+  "alias": "bzflow.n.imetrical.com",
+  "public": true,
+  "engines": {
+    "node": "10.x.x"
+  },
+  "files": [
+    "index.html",
+    "stream.html",
+    "sunburst.html",
+    "sunburst.js",
+    "stream.js",
+    "style.css",
+    "data/simple.json",
+    "data/flare.json",
+    "data/fermatFlow.json",
+    "data/diracFlow.json"
+  ]
+}

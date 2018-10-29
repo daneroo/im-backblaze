@@ -45,10 +45,12 @@ Attempts to answer the question:
 time go run cmd/bzFlow/bzFlow.go
 ```
 
-Deploy with now: https://bzflow.n.imetrical.com/stream
+Deploy with now (zeit):
+_(all files explicitly declaed in `now.json`)_
 ```
-now --static
-now alias viz-xxxxxxxx.now.sh bzflow.n.imetrical.com
+cd viz
+npm run deploy
+open https://bzflow.n.imetrical.com/
 ```
 
 ## bzWhyIgnored

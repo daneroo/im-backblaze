@@ -4,7 +4,9 @@
   "description": "",
   "main": "script.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "deploy": "now --static --public && now alias  && now rm --safe --yes bzflow",
+    "logs": "now logs -f $(now ls bzflow 2>/dev/null | tail +2 | head -1 |  awk '{print $2}')"
   },
   "author": "",
   "license": "ISC",

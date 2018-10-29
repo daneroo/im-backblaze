@@ -4,3 +4,13 @@
 body{
 	margin:0px
 }
+
+/* For sunburst */
+path {
+  stroke: #fff;
+}
+.select {
+	position:absolute;
+	top:10px;
+	left:10px;
+}
