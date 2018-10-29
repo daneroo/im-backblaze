@@ -6,6 +6,12 @@ In the course of it's operation Backblaze leaves these log files, and we wish to
 - Which files (and sizes) are uploaded on an ongoing basis
 - Vizualize the operation of continuous backup
 
+## bzfilelist
+Use the `bzfilelist` executable to diagnose reason for exclusion
+```
+/Library/Backblaze.bzpkg/bzfilelist -explainfile -h
+/Library/Backblaze.bzpkg/bzfilelist -explainfile $(pwd)/data/dirac/bzdata/bzlogs/bzreports_eventlog/10.log coco.txt
+```
 ## Backblaze log files: (on dirac)
 - `/Library/Backblaze.bzpkg/bzdata/bzlogs/bzfilelist/bzfilelist$(date +%d).log`: filelist process report
 - `/Library/Backblaze.bzpkg/bzdata/bzinfo.xml`: All info on backup. Which volumes, schedule, excluded dirs
@@ -37,6 +43,12 @@ Attempts to answer the question:
 - Which files are being transmited, on an ongoing basis?
 ```
 time go run cmd/bzFlow/bzFlow.go
+```
+
+Deploy with now: https://bzflow.n.imetrical.com/stream
+```
+now --static
+now alias viz-xxxxxxxx.now.sh bzflow.n.imetrical.com
 ```
 
 ## bzWhyIgnored

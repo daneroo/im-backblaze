@@ -23,9 +23,8 @@ const baseDir = "/Library/Backblaze.bzpkg/bzdata"
 // bzlogs/bzreports_lastfilestransmitted/13.log
 const doSummary = false
 
-const minStamp = "2018-10-08"
-
-// const minStamp = "2018-09-01"
+const minStamp = "2018-10-08" // dirac 10/08, fermat 10/13
+const maxStamp = "2040-12-31"
 
 func main() {
 	files, err := filepath.Glob(baseDir + "/bzlogs/bzreports_lastfilestransmitted/*.log")
@@ -34,11 +33,18 @@ func main() {
 	}
 
 	allxfrs := make([]backblaze.Transmitted, 0)
+	fmt.Fprintf(os.Stderr, " -- Date range: [%s,%s)\n", minStamp, maxStamp)
 	for _, file := range files {
 		xfrs := parse(file)
 
-		if len(xfrs) > 0 && xfrs[0].Stamp[0:10] < minStamp {
+		firstDate := xfrs[0].Stamp[0:10]
+		inRange := firstDate >= minStamp && firstDate < maxStamp
+		if len(xfrs) > 0 && !(inRange) {
+			fmt.Fprintf(os.Stderr, " -- Skipping: %s %s\n", firstDate, file)
 			continue
+		} else {
+			fmt.Fprintf(os.Stderr, " -- Keeping: %s %s\n", firstDate, file)
+
 		}
 
 		// writeJSON(xfrs, false) // one json array '.json'
