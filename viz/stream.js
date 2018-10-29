@@ -2,7 +2,7 @@
 
 const width = 960
 const height = 500
-const margin = ({ top: 0, right: 20, bottom: 30, left: 20 })
+const margin = ({ top: 10, right: 20, bottom: 30, left: 20 })
 
 //  dataURL is a global from the dropdown
 // let dataURL = 'data/allxfrs.json'
@@ -43,8 +43,24 @@ const tooltip = d3.select('body')
   .style('position', 'absolute')
   .style('z-index', '20')
   .style('visibility', 'hidden')
+  .style('border-radius', '10px')
+  .style('padding', '10px')
+  .style('background', '#eee')
+  // .style('opacity', '.3')
   .style('font', '12px sans-serif')
   .style('top', (margin.top + 40) + 'px')
+
+const vertical = d3.select('body')
+  .append('div')
+  .attr('class', 'remove')
+  .style('position', 'absolute')
+  .style('z-index', '19')
+  .style('visibility', 'hidden')
+  .style('width', '1px')
+  .style('height', height + 'px')
+  .style('top', margin.top + 'px')
+  .style('left', '0px')
+  .style('background', '#fff')
 
 // Below depend on data...
 function render (data) {
@@ -56,9 +72,9 @@ function render (data) {
   color.domain(data.map(d => d.name))
 
   const transformedData = [...multimap(data.map(d => [d.name, d]))]
-  const sumByDate = {}
+  const sumByDate = {} // attach same data to each layer
   transformedData.forEach(d => {
-    console.log(d[1])
+    // console.log(d[1])
     d[1].sumByLayer = d[1].reduce((sum, v) => sum + v.value, 0)
     d[1].sumByDate = sumByDate
     d[1].forEach(v => {
@@ -69,7 +85,7 @@ function render (data) {
       sumByDate[date] += v.value
     })
   })
-  console.log({ transformedData })
+  // console.log({ transformedData })
   svg.append('g')
     .selectAll('path')
     .data(transformedData)
@@ -94,14 +110,17 @@ function dropdown () {
   const select = d3.select('body')
     .append('select')
     .attr('class', 'select')
+    .style('position', 'absolute') // .style('z-index', '20')
+    .style('top', (height + margin.bottom) + 'px')
+    .style('left', margin.left + 'px')
+
     .on('change', onchange)
 
   select
     .selectAll('option')
-    .data(['dirac', 'fermat']).enter()
+    .data(['dirac', 'fermat', 'dirac-initial', 'fermat-initial']).enter()
     .append('option')
     .attr('selected', d => {
-      console.log(dataURL, d, (dataURL === `data/${d}Flow.json`))
       return (dataURL === `data/${d}Flow.json`) ? 'selected' : null
     })
     .text(d => d)
@@ -115,7 +134,8 @@ function dropdown () {
 
   // onchange() // load('flare.json')
 }
-// sets up tooltip and such
+
+// renders tooltip and vertical
 function hover () {
   svg.selectAll('.layer')
     .attr('opacity', 1)
@@ -127,14 +147,6 @@ function hover () {
         })
     })
     .on('mousemove', function (d, i) {
-      function tipX (x) { // 20-940
-        // figure out x position of mouse for tooltip
-        const winWidth = width - margin.left
-        const tipWidth = 200
-        return (x > winWidth - tipWidth - 30)
-          ? x - 45 - tipWidth
-          : x + 10
-      }
       function size (b) {
         if (b <= 0) { return b + 'B' }
         const log2iDiv10 = Math.floor(Math.log2(b) / 10)
@@ -162,9 +174,24 @@ function hover () {
       const value = closest(date)
       const name = d[0]
 
-      tooltip
-        .style('left', tipX(mousex) + 'px')
+      vertical
+        .style('left', (mousex + 2) + 'px')
         .style('visibility', 'visible')
+
+      function position (selection, mousex) {
+        // TODO: redo this math, slight offset...
+        const padding = 10 // must match padding above
+        const left = mousex + 2 + padding
+        const right = (margin.right + padding + width - margin.left - mousex)
+        if (mousex < width / 2) {
+          selection.style('right', null).style('left', left + 'px')
+        } else {
+          selection.style('left', null).style('right', right + 'px')
+        }
+      }
+      tooltip
+        .style('visibility', 'visible')
+        .call(position, mousex)
         .html(`<div>
           <div><span style="font-size:150%; color:${clr}">■</span><tt>${name}</tt></div>
           <div>
@@ -182,6 +209,7 @@ function hover () {
         .duration(100)
         .attr('opacity', '1')
       tooltip.style('visibility', 'hidden')
+      vertical.style('visibility', 'hidden')
     })
 }
 
@@ -293,8 +321,7 @@ function transform (data) {
         ).values()
       ))
 
-  console.log({ stack })
-
+  // console.log({ stack })
   // Copy the offsets back into the data.
   for (const layer of stack) {
     for (const d of layer) {
@@ -317,16 +344,10 @@ function multisum (entries) {
   return multimap(entries, (p, v) => p + v, () => 0)
 }
 
-async function unemploymentData () {
-  // const dataURL = 'https://raw.githubusercontent.com/vega/vega-lite/b2338345973f4717979ad9140c06ee0970c20116/data/unemployment-across-industries.json'
-  const dataURL = 'data/unemployment-across-industries.json'
-  let data = (await d3.json(dataURL))
-    .map(({ series, count, date }) => ({ name: series, value: count, date: new Date(date) }))
-
-  return data
-}
-
 function parents (path, depth) {
+  if (path.startsWith('/Volumes/')) {
+    depth += 2
+  }
   const parts = path.split('/')
   return parts.slice(0, depth + 1).join('/')
 }
@@ -340,9 +361,10 @@ async function bzData () {
     Other: { name: 'Other', value: 0, count: 0, byDate: {} }
   }
   const alldates = {}
+  const maxDepth = 3
   data.forEach((d, i) => {
     // console.log('i', i, d)
-    const key = parents(d.name, 3)
+    const key = parents(d.name, maxDepth)
     // 2018-10-21 12:37:01
     const dt = d.date.toISOString().substring(0, 10)
     // const dt = d.date.toISOString().substring(0, 13) + ':00:00'
@@ -381,106 +403,13 @@ async function bzData () {
       }
     }
   }
+
+  // dump the raw data (leaves) {name,date,value}
   // rdata.forEach((d, i, rdata) => {
   //   console.log(`${i}/${rdata.length}: ${JSON.stringify(d)}`)
   // })
-  if (rdata.length > 0) {
-    return rdata
-      .map(d => ({ ...d, date: new Date(d.date) }))
-  }
 
-  return [
-    // [
-    { 'type': '', 'stamp': '2018-09-30', 'size': 34749262726, 'chunk': 0, 'fname': '/' },
-    { 'type': '', 'stamp': '2018-10-01', 'size': 104331733557, 'chunk': 0, 'fname': '/' },
-    { 'type': '', 'stamp': '2018-10-02', 'size': 117284001241, 'chunk': 0, 'fname': '/' },
-    { 'type': '', 'stamp': '2018-10-03', 'size': 107162458407, 'chunk': 0, 'fname': '/' },
-    { 'type': '', 'stamp': '2018-10-04', 'size': 123849484129, 'chunk': 0, 'fname': '/' },
-    { 'type': '', 'stamp': '2018-10-05', 'size': 85752783104, 'chunk': 0, 'fname': '/' },
-    { 'type': '', 'stamp': '2018-10-06', 'size': 134287301707, 'chunk': 0, 'fname': '/' },
-    { 'type': '', 'stamp': '2018-10-07', 'size': 70324783777, 'chunk': 0, 'fname': '/' },
-    { 'type': '', 'stamp': '2018-10-08', 'size': 679383597, 'chunk': 0, 'fname': '/' },
-    { 'type': '', 'stamp': '2018-10-09', 'size': 331409879, 'chunk': 0, 'fname': '/' },
-    { 'type': '', 'stamp': '2018-10-10', 'size': 613931767, 'chunk': 0, 'fname': '/' },
-    { 'type': '', 'stamp': '2018-10-11', 'size': 281689658, 'chunk': 0, 'fname': '/' },
-    { 'type': '', 'stamp': '2018-10-12', 'size': 566649309, 'chunk': 0, 'fname': '/' },
-    { 'type': '', 'stamp': '2018-10-13', 'size': 288803310, 'chunk': 0, 'fname': '/' },
-    { 'type': '', 'stamp': '2018-10-14', 'size': 399931108, 'chunk': 0, 'fname': '/' },
-    { 'type': '', 'stamp': '2018-10-15', 'size': 543700963, 'chunk': 0, 'fname': '/' },
-    { 'type': '', 'stamp': '2018-10-16', 'size': 284346440, 'chunk': 0, 'fname': '/' },
-    { 'type': '', 'stamp': '2018-10-17', 'size': 457778470, 'chunk': 0, 'fname': '/' },
-    { 'type': '', 'stamp': '2018-10-18', 'size': 671480830, 'chunk': 0, 'fname': '/' },
-    { 'type': '', 'stamp': '2018-10-19', 'size': 334514297, 'chunk': 0, 'fname': '/' },
-    { 'type': '', 'stamp': '2018-10-20', 'size': 97378308, 'chunk': 0, 'fname': '/' },
-    // ], [
-    { 'type': '', 'stamp': '2018-09-30', 'size': 13205517070, 'chunk': 0, 'fname': '/Volumes/Space/' },
-    { 'type': '', 'stamp': '2018-10-01', 'size': 83984755223, 'chunk': 0, 'fname': '/Volumes/Space/' },
-    { 'type': '', 'stamp': '2018-10-02', 'size': 102178881489, 'chunk': 0, 'fname': '/Volumes/Space/' },
-    { 'type': '', 'stamp': '2018-10-03', 'size': 95624021609, 'chunk': 0, 'fname': '/Volumes/Space/' },
-    { 'type': '', 'stamp': '2018-10-04', 'size': 110950862270, 'chunk': 0, 'fname': '/Volumes/Space/' },
-    { 'type': '', 'stamp': '2018-10-05', 'size': 79400234070, 'chunk': 0, 'fname': '/Volumes/Space/' },
-    { 'type': '', 'stamp': '2018-10-06', 'size': 133921929618, 'chunk': 0, 'fname': '/Volumes/Space/' },
-    { 'type': '', 'stamp': '2018-10-07', 'size': 67151982904, 'chunk': 0, 'fname': '/Volumes/Space/' },
-    { 'type': '', 'stamp': '2018-10-08', 'size': 1, 'chunk': 0, 'fname': '/Volumes/Space/' },
-    { 'type': '', 'stamp': '2018-10-09', 'size': 1, 'chunk': 0, 'fname': '/Volumes/Space/' },
-    { 'type': '', 'stamp': '2018-10-10', 'size': 1, 'chunk': 0, 'fname': '/Volumes/Space/' },
-    { 'type': '', 'stamp': '2018-10-11', 'size': 1, 'chunk': 0, 'fname': '/Volumes/Space/' },
-    { 'type': '', 'stamp': '2018-10-12', 'size': 1, 'chunk': 0, 'fname': '/Volumes/Space/' },
-    { 'type': '', 'stamp': '2018-10-13', 'size': 1, 'chunk': 0, 'fname': '/Volumes/Space/' },
-    { 'type': '', 'stamp': '2018-10-14', 'size': 1, 'chunk': 0, 'fname': '/Volumes/Space/' },
-    { 'type': '', 'stamp': '2018-10-15', 'size': 1, 'chunk': 0, 'fname': '/Volumes/Space/' },
-    { 'type': '', 'stamp': '2018-10-16', 'size': 1, 'chunk': 0, 'fname': '/Volumes/Space/' },
-    { 'type': '', 'stamp': '2018-10-17', 'size': 1, 'chunk': 0, 'fname': '/Volumes/Space/' },
-    { 'type': '', 'stamp': '2018-10-18', 'size': 1, 'chunk': 0, 'fname': '/Volumes/Space/' },
-    { 'type': '', 'stamp': '2018-10-19', 'size': 1, 'chunk': 0, 'fname': '/Volumes/Space/' },
-    { 'type': '', 'stamp': '2018-10-20', 'size': 1, 'chunk': 0, 'fname': '/Volumes/Space/' },
-    // ], [
-    { 'type': '', 'stamp': '2018-09-30', 'size': 21536239858, 'chunk': 0, 'fname': '/Users/daniel/' },
-    { 'type': '', 'stamp': '2018-10-01', 'size': 20342983059, 'chunk': 0, 'fname': '/Users/daniel/' },
-    { 'type': '', 'stamp': '2018-10-02', 'size': 15042581474, 'chunk': 0, 'fname': '/Users/daniel/' },
-    { 'type': '', 'stamp': '2018-10-03', 'size': 11538436798, 'chunk': 0, 'fname': '/Users/daniel/' },
-    { 'type': '', 'stamp': '2018-10-04', 'size': 12898621859, 'chunk': 0, 'fname': '/Users/daniel/' },
-    { 'type': '', 'stamp': '2018-10-05', 'size': 6352549034, 'chunk': 0, 'fname': '/Users/daniel/' },
-    { 'type': '', 'stamp': '2018-10-06', 'size': 365363496, 'chunk': 0, 'fname': '/Users/daniel/' },
-    { 'type': '', 'stamp': '2018-10-07', 'size': 3133198621, 'chunk': 0, 'fname': '/Users/daniel/' },
-    { 'type': '', 'stamp': '2018-10-08', 'size': 679383596, 'chunk': 0, 'fname': '/Users/daniel/' },
-    { 'type': '', 'stamp': '2018-10-09', 'size': 331379203, 'chunk': 0, 'fname': '/Users/daniel/' },
-    { 'type': '', 'stamp': '2018-10-10', 'size': 613931766, 'chunk': 0, 'fname': '/Users/daniel/' },
-    { 'type': '', 'stamp': '2018-10-11', 'size': 281683572, 'chunk': 0, 'fname': '/Users/daniel/' },
-    { 'type': '', 'stamp': '2018-10-12', 'size': 566649308, 'chunk': 0, 'fname': '/Users/daniel/' },
-    { 'type': '', 'stamp': '2018-10-13', 'size': 288803309, 'chunk': 0, 'fname': '/Users/daniel/' },
-    { 'type': '', 'stamp': '2018-10-14', 'size': 399931107, 'chunk': 0, 'fname': '/Users/daniel/' },
-    { 'type': '', 'stamp': '2018-10-15', 'size': 543680297, 'chunk': 0, 'fname': '/Users/daniel/' },
-    { 'type': '', 'stamp': '2018-10-16', 'size': 284262333, 'chunk': 0, 'fname': '/Users/daniel/' },
-    { 'type': '', 'stamp': '2018-10-17', 'size': 457770976, 'chunk': 0, 'fname': '/Users/daniel/' },
-    { 'type': '', 'stamp': '2018-10-18', 'size': 671474071, 'chunk': 0, 'fname': '/Users/daniel/' },
-    { 'type': '', 'stamp': '2018-10-19', 'size': 334514296, 'chunk': 0, 'fname': '/Users/daniel/' },
-    { 'type': '', 'stamp': '2018-10-20', 'size': 97378308, 'chunk': 0, 'fname': '/Users/daniel/' },
-    // ], [
-    { 'type': '', 'stamp': '2018-09-30', 'size': 32082, 'chunk': 0, 'fname': '/Users/daniel/Library/Containers/com.docker.docker/Data/' },
-    { 'type': '', 'stamp': '2018-10-01', 'size': 1, 'chunk': 0, 'fname': '/Users/daniel/Library/Containers/com.docker.docker/Data/' },
-    { 'type': '', 'stamp': '2018-10-02', 'size': 1, 'chunk': 0, 'fname': '/Users/daniel/Library/Containers/com.docker.docker/Data/' },
-    { 'type': '', 'stamp': '2018-10-03', 'size': 1, 'chunk': 0, 'fname': '/Users/daniel/Library/Containers/com.docker.docker/Data/' },
-    { 'type': '', 'stamp': '2018-10-04', 'size': 1, 'chunk': 0, 'fname': '/Users/daniel/Library/Containers/com.docker.docker/Data/' },
-    { 'type': '', 'stamp': '2018-10-05', 'size': 1, 'chunk': 0, 'fname': '/Users/daniel/Library/Containers/com.docker.docker/Data/' },
-    { 'type': '', 'stamp': '2018-10-06', 'size': 1, 'chunk': 0, 'fname': '/Users/daniel/Library/Containers/com.docker.docker/Data/' },
-    { 'type': '', 'stamp': '2018-10-07', 'size': 1701242606, 'chunk': 0, 'fname': '/Users/daniel/Library/Containers/com.docker.docker/Data/' },
-    { 'type': '', 'stamp': '2018-10-08', 'size': 1, 'chunk': 0, 'fname': '/Users/daniel/Library/Containers/com.docker.docker/Data/' },
-    { 'type': '', 'stamp': '2018-10-09', 'size': 18611432, 'chunk': 0, 'fname': '/Users/daniel/Library/Containers/com.docker.docker/Data/' },
-    { 'type': '', 'stamp': '2018-10-10', 'size': 1, 'chunk': 0, 'fname': '/Users/daniel/Library/Containers/com.docker.docker/Data/' },
-    { 'type': '', 'stamp': '2018-10-11', 'size': 19325506, 'chunk': 0, 'fname': '/Users/daniel/Library/Containers/com.docker.docker/Data/' },
-    { 'type': '', 'stamp': '2018-10-12', 'size': 1, 'chunk': 0, 'fname': '/Users/daniel/Library/Containers/com.docker.docker/Data/' },
-    { 'type': '', 'stamp': '2018-10-13', 'size': 37330926, 'chunk': 0, 'fname': '/Users/daniel/Library/Containers/com.docker.docker/Data/' },
-    { 'type': '', 'stamp': '2018-10-14', 'size': 1, 'chunk': 0, 'fname': '/Users/daniel/Library/Containers/com.docker.docker/Data/' },
-    { 'type': '', 'stamp': '2018-10-15', 'size': 106236792, 'chunk': 0, 'fname': '/Users/daniel/Library/Containers/com.docker.docker/Data/' },
-    { 'type': '', 'stamp': '2018-10-16', 'size': 1, 'chunk': 0, 'fname': '/Users/daniel/Library/Containers/com.docker.docker/Data/' },
-    { 'type': '', 'stamp': '2018-10-17', 'size': 82968844, 'chunk': 0, 'fname': '/Users/daniel/Library/Containers/com.docker.docker/Data/' },
-    { 'type': '', 'stamp': '2018-10-18', 'size': 40548, 'chunk': 0, 'fname': '/Users/daniel/Library/Containers/com.docker.docker/Data/' },
-    { 'type': '', 'stamp': '2018-10-19', 'size': 96675164, 'chunk': 0, 'fname': '/Users/daniel/Library/Containers/com.docker.docker/Data/' },
-    { 'type': '', 'stamp': '2018-10-20', 'size': 42, 'chunk': 0, 'fname': '/Users/daniel/Library/Containers/com.docker.docker/Data/' }
-    // ]
-  ]
-    // .filter(d => d.stamp > '2018-10-07')
-    .map(d => ({ name: d.fname, value: d.size, date: new Date(d.stamp) }))
-    // .map(d => ({ ...d, value: Math.log(d.value) }))
+  // map date from string to Date object
+  return rdata
+    .map(d => ({ ...d, date: new Date(d.date) }))
 }
