@@ -102,7 +102,7 @@ func ParseTransmited(r io.Reader) []Transmitted {
 
 		list = append(list, tx3)
 	}
-	fmt.Fprintf(os.Stderr, "-= Parsed %d lines (%d skipped)\n", len(list), skipped)
+	// fmt.Fprintf(os.Stderr, "-= Parsed %d lines (%d skipped)\n", len(list), skipped)
 
 	if err := scanner.Err(); err != nil {
 		log.Fatal(err)

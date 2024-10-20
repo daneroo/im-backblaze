@@ -12,19 +12,27 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/daneroo/backblaze"
 )
 
-const baseDir = "/Library/Backblaze.bzpkg/bzdata"
+// const baseDir = "/Library/Backblaze.bzpkg/bzdata"
 
 // const baseDir = "./data/dirac/bzdata"
 // const baseDir = "./data/fermat/bzdata"
+const baseDir = "./data/davinci/bzdata"
 
 // bzlogs/bzreports_lastfilestransmitted/13.log
 const doSummary = false
 
-const minStamp = "2018-10-08" // dirac 10/08, fermat 10/13
+// const minStamp = "2018-01-01" // dirac 10/08, fermat 10/13
+//
+//	Should this be UTC? I think the filenames are localtime
+const daysAgo = 2
+
+var minStamp = time.Now().AddDate(0, 0, -20).Format("2006-01-02")
+
 const maxStamp = "2040-12-31"
 
 func main() {
@@ -38,13 +46,16 @@ func main() {
 	for _, file := range files {
 		xfrs := parse(file)
 
-		firstDate := xfrs[0].Stamp[0:10]
-		inRange := firstDate >= minStamp && firstDate < maxStamp
-		if len(xfrs) > 0 && !(inRange) {
-			fmt.Fprintf(os.Stderr, " -- Skipping: %s %s\n", firstDate, file)
-			continue
-		} else {
-			fmt.Fprintf(os.Stderr, " -- Keeping: %s %s\n", firstDate, file)
+		fmt.Fprintf(os.Stderr, " -- Considering: %s %d\n", file, len(xfrs))
+		if len(xfrs) > 0 {
+			firstDate := xfrs[0].Stamp[0:10]
+			inRange := firstDate >= minStamp && firstDate < maxStamp
+			if len(xfrs) > 0 && !(inRange) {
+				fmt.Fprintf(os.Stderr, " -- Skipping: %s %s\n", firstDate, file)
+				continue
+			} else {
+				fmt.Fprintf(os.Stderr, " -- Keeping: %s %s\n", firstDate, file)
+			}
 
 		}
 
@@ -70,7 +81,8 @@ func main() {
 }
 
 // Sorts the passed in slice, in place
-//  Sort is guaranteed Stable
+//
+//	Sort is guaranteed Stable
 func sortBySizeThenName(list []backblaze.Transmitted) {
 	sort.Slice(list, func(i, j int) bool {
 		if list[i].Size == list[j].Size {
