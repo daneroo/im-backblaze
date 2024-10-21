@@ -51,14 +51,14 @@ Attempts to answer the question:
 
 - Which files are being transmited, on an ongoing basis?
 
-```
+```bash
 time go run cmd/bzFlow/bzFlow.go
 ```
 
 Deploy with now (zeit):
 _(all files explicitly declaed in `now.json`)_
 
-```
+```bash
 cd viz
 npm run deploy
 open https://bzflow.n.imetrical.com/
@@ -70,7 +70,7 @@ Attempts to answer the question:
 
 - Which files are NOT backed up and why ?
 
-```
+```bash
 time go run cmd/bzWhyIgnored/bzWhyIgnored.go
 
 go build cmd/bzWhyIgnored/bzWhyIgnored.go
@@ -81,7 +81,7 @@ ssh fermat time Downloads/bzWhyIgnored
 
 ## Monitor progress during inital upload
 
-```
+```bash
 tail -f /Library/Backblaze.bzpkg/bzdata/bzlogs/bzreports_lastfilestransmitted/$(date +%d).log
 sudo /usr/local/sbin/iftop -i en1
 ```
@@ -90,7 +90,7 @@ sudo /usr/local/sbin/iftop -i en1
 
 ### Temporary copy, in case some files disppear
 
-```
+```bash
 ./scripts/clone.sh
 ```
 
@@ -98,7 +98,7 @@ sudo /usr/local/sbin/iftop -i en1
 
 FILELIST=v0009a98724006e621c1646e011f_root_filelist.dat
 
-```
+```bash
 ./scripts/count.sh
 ```
 
@@ -106,7 +106,7 @@ FILELIST=v0009a98724006e621c1646e011f_root_filelist.dat
 
 Use `cut` and `sort` to compare with `diff` `cmp`
 
-```
+```bash
 wc -l ./data/dirac/bzdata/bzbackup/bzfileids.dat
 # 1988792 ./data/dirac/bzdata/bzbackup/bzfileids.dat
 grep '^f' ./data/dirac/bzdata/bzfilelists/v00*dat|wc -l
@@ -126,6 +126,6 @@ diff -W 240 --suppress-common-lines --side-by-side compare-file*dat
 
 Compare listed with actual:
 
-```
-
+```bash
+...
 ```
