@@ -58,7 +58,8 @@ Attempts to answer the question:
 # parse and produce json
 time go run cmd/bzFlow/bzFlow.go
 
-# move to viz
+# move to viz - viz/data/ is mostly under git control
+#  don't commit huge files...
 mv davinciFlow.json galoisFlow.json viz/data/
 # serve
 npx http-server viz
