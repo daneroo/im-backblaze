@@ -6,7 +6,8 @@ const margin = { top: 10, right: 20, bottom: 30, left: 20 };
 
 //  dataURL is a global from the dropdown
 // let dataURL = 'data/allxfrs.json'
-let dataURL = "data/diracFlow.json";
+let dataURL = "data/galoisFlow.json";
+// let dataURL = "data/diracFlow.json";
 // let dataURL = 'data/fermatFlow.json'
 
 const svg = d3
@@ -132,7 +133,14 @@ function dropdown() {
 
   select
     .selectAll("option")
-    .data(["dirac", "fermat", "dirac-initial", "fermat-initial", "davinci"])
+    .data([
+      "galois",
+      "davinci",
+      "dirac",
+      "fermat",
+      "dirac-initial",
+      "fermat-initial",
+    ])
     .enter()
     .append("option")
     .attr("selected", (d) => {
@@ -426,7 +434,7 @@ async function bzData() {
 
   const rdata = [];
   for (let key in summary) {
-    // console.log(`--${key}:${Object.keys(summary[key].byDate).sort()}`)
+    // console.log(`--${key}:${Object.keys(summary[key].byDate).sort()}`);
     for (let dt of ds) {
       if (!(dt in summary[key].byDate)) {
         // console.log(`Inserting date ${dt} in ${key}`)
