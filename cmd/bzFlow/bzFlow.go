@@ -22,12 +22,10 @@ var hosts = []string{"galois", "davinci"}
 // bzlogs/bzreports_lastfilestransmitted/13.log
 const doSummary = false
 
-// const minStamp = "2018-01-01" // dirac 10/08, fermat 10/13
-//
-//	Should this be UTC? I think the filenames are localtime
-//
-// const daysAgo = 2
-var minStamp = time.Now().AddDate(0, 0, -20).Format("2006-01-02")
+// Should this be UTC? I think the filenames are localtime
+const daysAgo = 20
+
+var minStamp = time.Now().AddDate(0, 0, -daysAgo).Format("2006-01-02")
 
 const maxStamp = "2040-12-31"
 
