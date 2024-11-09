@@ -17,11 +17,7 @@ import (
 	"github.com/daneroo/backblaze"
 )
 
-// const baseDir = "/Library/Backblaze.bzpkg/bzdata"
-
-// const baseDir = "./data/dirac/bzdata"
-// const baseDir = "./data/fermat/bzdata"
-const baseDir = "./data/davinci/bzdata"
+var hosts = []string{"galois", "davinci"}
 
 // bzlogs/bzreports_lastfilestransmitted/13.log
 const doSummary = false
@@ -29,55 +25,52 @@ const doSummary = false
 // const minStamp = "2018-01-01" // dirac 10/08, fermat 10/13
 //
 //	Should this be UTC? I think the filenames are localtime
-const daysAgo = 2
-
+//
+// const daysAgo = 2
 var minStamp = time.Now().AddDate(0, 0, -20).Format("2006-01-02")
 
 const maxStamp = "2040-12-31"
 
 func main() {
-	files, err := filepath.Glob(baseDir + "/bzlogs/bzreports_lastfilestransmitted/*.log")
-	if err != nil {
-		log.Fatal(err)
-	}
+	for _, host := range hosts {
+		fmt.Fprintf(os.Stderr, "Processing host: %s\n", host)
+		// bzdata on localhost!
+		// baseDir = "/Library/Backblaze.bzpkg/bzdata"
+		baseDir := fmt.Sprintf("./data/%s/bzdata", host)
 
-	allxfrs := make([]backblaze.Transmitted, 0)
-	fmt.Fprintf(os.Stderr, " -- Date range: [%s,%s)\n", minStamp, maxStamp)
-	for _, file := range files {
-		xfrs := parse(file)
+		files, err := filepath.Glob(baseDir + "/bzlogs/bzreports_lastfilestransmitted/*.log")
+		if err != nil {
+			log.Printf("Error for host %s: %v", host, err)
+			continue
+		}
 
-		fmt.Fprintf(os.Stderr, " -- Considering: %s %d\n", file, len(xfrs))
-		if len(xfrs) > 0 {
-			firstDate := xfrs[0].Stamp[0:10]
-			inRange := firstDate >= minStamp && firstDate < maxStamp
-			if len(xfrs) > 0 && !(inRange) {
-				fmt.Fprintf(os.Stderr, " -- Skipping: %s %s\n", firstDate, file)
-				continue
-			} else {
-				fmt.Fprintf(os.Stderr, " -- Keeping: %s %s\n", firstDate, file)
+		allxfrs := make([]backblaze.Transmitted, 0)
+		fmt.Fprintf(os.Stderr, " -- Date range: [%s,%s)\n", minStamp, maxStamp)
+		for _, file := range files {
+			xfrs := parse(file)
+
+			fmt.Fprintf(os.Stderr, " -- Considering: %s %d\n", file, len(xfrs))
+			if len(xfrs) > 0 {
+				firstDate := xfrs[0].Stamp[0:10]
+				inRange := firstDate >= minStamp && firstDate < maxStamp
+				if len(xfrs) > 0 && !(inRange) {
+					fmt.Fprintf(os.Stderr, " -- Skipping: %s %s\n", firstDate, file)
+					continue
+				} else {
+					fmt.Fprintf(os.Stderr, " -- Keeping: %s %s\n", firstDate, file)
+				}
 			}
 
+			if doSummary {
+				summary := summarize(xfrs)
+				sortBySizeThenName(summary)
+				writeJSON(summary, "", true)
+			}
+			allxfrs = append(allxfrs, xfrs...)
 		}
-
-		// writeJSON(xfrs, false) // one json array '.json'
-		// writeJSON(xfrs, true)  //perLine '.jsonl'
-
-		// writeTree(tree)
-
-		if doSummary {
-			summary := summarize(xfrs)
-			// include files themselves
-			// summary = append(summary, xfrs...)
-			sortBySizeThenName(summary)
-
-			writeJSON(summary, "", true) //perLine '.jsonl'
-
-		}
-		allxfrs = append(allxfrs, xfrs...)
+		fmt.Fprintf(os.Stderr, "-= Accumulated %d entries\n", len(allxfrs))
+		writeJSON(allxfrs, fmt.Sprintf("%sFlow", host), false)
 	}
-	fmt.Fprintf(os.Stderr, "-= Accumulated %d entries\n", len(allxfrs))
-	writeJSON(allxfrs, "allxfrs", false) //perLine '.jsonl'
-
 }
 
 // Sorts the passed in slice, in place

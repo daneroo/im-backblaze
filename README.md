@@ -49,10 +49,19 @@ Lists are in: `/Library/Backblaze.bzpkg/bzdata/bzfilelists`
 
 Attempts to answer the question:
 
-- Which files are being transmited, on an ongoing basis?
+- Which files are being transmitted, on an ongoing basis?
 
 ```bash
+# get data for galois and davinci
+./scripts/clone.sh
+
+# parse and produce json
 time go run cmd/bzFlow/bzFlow.go
+
+# move to viz
+mv davinciFlow.json galoisFlow.json viz/data/
+# serve
+npx http-server viz
 ```
 
 Deploy with now (zeit):
