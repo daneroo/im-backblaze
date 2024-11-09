@@ -241,13 +241,14 @@ func splitFieldsFast(line string, lastCombined *Transmitted) Transmitted {
 		if preBeginOfPath == -1 {
 			preBeginOfPath = strings.Index(line, " - Multiple")
 		}
-		if preBeginOfPath != -1 && preBeginOfPath != 87 && preBeginOfPath != 80 {
+		// flaky because numerical fields sometime skew things
+		if preBeginOfPath != -1 && preBeginOfPath != 87 && preBeginOfPath != 88 && preBeginOfPath != 89 && preBeginOfPath != 80 {
 			fmt.Fprintf(os.Stderr, "-= Unexpected line structure (might be ok)\n")
 			fmt.Fprintf(os.Stderr, "-begin: %d |%s|\n", preBeginOfPath, line)
-			fmt.Fprintf(os.Stderr, "+begin: %d |%s|\n", preBeginOfPath, line[preBeginOfPath+3:len(line)])
+			fmt.Fprintf(os.Stderr, "+begin: %d |%s|\n", preBeginOfPath, line[preBeginOfPath+3:])
 		}
 		mid := line[22:preBeginOfPath]
-		tx.FName = line[preBeginOfPath+3 : len(line)]
+		tx.FName = line[preBeginOfPath+3:]
 
 		if len(strings.TrimSpace(mid)) == 0 {
 			// combinedContinued
